@@ -1,0 +1,1898 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VM Platform — Gestión de Máquinas Virtuales</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary:      #070b13;
+            --bg-secondary:    #0d1321;
+            --bg-card:         #111827;
+            --bg-card-hover:   #161f30;
+            --bg-input:        #0d1321;
+            --border:          #1e2d45;
+            --border-light:    #253550;
+            --border-active:   #3b82f6;
+            --text-primary:    #e2e8f0;
+            --text-secondary:  #8fa3bf;
+            --text-muted:      #4b617a;
+            --blue:            #3b82f6;
+            --blue-dim:        #0f2240;
+            --blue-mid:        #1a3a6e;
+            --green:           #10b981;
+            --green-dim:       #062a1a;
+            --amber:           #f59e0b;
+            --amber-dim:       #2d1e03;
+            --red:             #f43f5e;
+            --red-dim:         #2d0a12;
+            --purple:          #8b5cf6;
+            --purple-dim:      #1e0f40;
+            --shadow-sm:       0 2px 8px rgba(0,0,0,0.4);
+            --shadow:          0 4px 24px rgba(0,0,0,0.5);
+            --shadow-lg:       0 12px 48px rgba(0,0,0,0.7);
+            --radius:          14px;
+            --radius-sm:       9px;
+            --radius-xs:       6px;
+        }
+
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* ─── Scrollbar ─── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+        /* ─── Header ─── */
+        .header {
+            background: rgba(13,19,33,0.95);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(16px);
+        }
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .header-logo {
+            width: 34px; height: 34px;
+            background: linear-gradient(135deg, var(--blue), var(--purple));
+            border-radius: 9px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .header-logo svg { width: 18px; height: 18px; }
+        .header-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            color: var(--text-primary);
+        }
+        .header-sep {
+            color: var(--text-muted);
+            font-size: 18px;
+            font-weight: 300;
+            margin: 0 2px;
+        }
+        .header-sub {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .header-right {
+            display: flex; align-items: center; gap: 20px;
+        }
+        .header-status {
+            display: flex; align-items: center; gap: 7px;
+            font-size: 12px; color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .status-dot {
+            width: 7px; height: 7px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse-dot 2.5s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(16,185,129,0); }
+        }
+        .header-refresh {
+            width: 32px; height: 32px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+        }
+        .header-refresh:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+        .header-refresh svg { width: 14px; height: 14px; }
+        .header-refresh.spinning svg { animation: spin 0.8s linear infinite; }
+
+        /* ─── Layout ─── */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            padding: 24px 32px;
+            max-width: 1680px;
+            margin: 0 auto;
+        }
+
+        /* ─── Pipeline flow indicator ─── */
+        .pipeline {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 24px;
+            overflow: hidden;
+        }
+        .pipeline-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            position: relative;
+        }
+        .pipeline-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: -1px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2px;
+            height: 28px;
+            background: var(--border);
+        }
+        .pipeline-step-num {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            flex-shrink: 0;
+            border: 2px solid;
+            transition: all 0.3s;
+        }
+        .step-1 .pipeline-step-num { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+        .step-2 .pipeline-step-num { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
+        .step-3 .pipeline-step-num { border-color: var(--purple); color: var(--purple); background: var(--purple-dim); }
+        .pipeline-step-info { flex: 1; padding: 0 16px; }
+        .pipeline-step-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+        .pipeline-step-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        .pipeline-arrow {
+            color: var(--text-muted);
+            margin: 0 8px;
+            flex-shrink: 0;
+            display: flex; align-items: center;
+        }
+        .pipeline-arrow svg { width: 16px; height: 16px; }
+
+        /* ─── Section ─── */
+        .section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            display: flex;
+            flex-direction: column;
+            min-height: 520px;
+            overflow: hidden;
+        }
+        .section-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .section-header-left {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .section-icon {
+            width: 30px; height: 30px;
+            border-radius: var(--radius-xs);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .section-icon svg { width: 15px; height: 15px; }
+        .section-icon.s1 { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue-mid); }
+        .section-icon.s2 { background: var(--amber-dim); color: var(--amber); border: 1px solid #4a3008; }
+        .section-icon.s3 { background: var(--green-dim); color: var(--green); border: 1px solid #0a4028; }
+        .section-label {
+            display: flex; flex-direction: column; gap: 1px;
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.1px;
+        }
+        .section-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .section-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            background: var(--bg-card);
+            color: var(--text-muted);
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            letter-spacing: 0.3px;
+        }
+        .section-body {
+            padding: 14px;
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .section-footer {
+            padding: 12px 14px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        /* ─── Progress Steps inside card ─── */
+        .card-steps {
+            display: flex;
+            gap: 0;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            overflow: hidden;
+        }
+        .card-step {
+            flex: 1;
+            padding: 7px 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            border-right: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        .card-step:last-child { border-right: none; }
+        .card-step.done {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+        .card-step.active {
+            background: var(--blue-dim);
+            color: var(--blue);
+        }
+        .card-step-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+        .card-step.done .card-step-dot { background: var(--green); }
+        .card-step.active .card-step-dot { background: var(--blue); animation: pulse-dot 1.5s ease-in-out infinite; }
+
+        /* ─── Cards ─── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-light);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            gap: 8px;
+        }
+        .card-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+        .badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .badge-green  { background: var(--green-dim);  color: var(--green);  border: 1px solid #0a4028; }
+        .badge-blue   { background: var(--blue-dim);   color: var(--blue);   border: 1px solid var(--blue-mid); }
+        .badge-amber  { background: var(--amber-dim);  color: var(--amber);  border: 1px solid #4a3008; }
+        .badge-red    { background: var(--red-dim);    color: var(--red);    border: 1px solid #5a1020; }
+        .badge-purple { background: var(--purple-dim); color: var(--purple); border: 1px solid #381c7a; }
+        .badge-muted  { background: var(--bg-primary); color: var(--text-muted); border: 1px solid var(--border); }
+
+        .card-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        .card-meta {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .meta-item {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex; align-items: center; gap: 5px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .meta-item svg { width: 10px; height: 10px; opacity: 0.7; flex-shrink: 0; }
+        .card-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .card-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 10px 0;
+        }
+
+        /* ─── Buttons ─── */
+        .btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: var(--radius-xs);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn svg { width: 12px; height: 12px; flex-shrink: 0; }
+        .btn:hover:not(:disabled) {
+            border-color: var(--border-active);
+            color: var(--text-primary);
+            background: var(--blue-dim);
+        }
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: var(--blue);
+            border-color: var(--blue);
+            color: #fff;
+            font-weight: 600;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+        }
+        .btn-green {
+            color: var(--green);
+            border-color: #0a4028;
+            background: var(--green-dim);
+        }
+        .btn-green:hover:not(:disabled) {
+            background: #0a4028;
+            border-color: var(--green);
+            color: var(--green);
+        }
+        .btn-red {
+            color: var(--red);
+            border-color: #5a1020;
+            background: var(--red-dim);
+        }
+        .btn-red:hover:not(:disabled) {
+            background: #5a1020;
+            border-color: var(--red);
+            color: var(--red);
+        }
+        .btn-amber {
+            color: var(--amber);
+            border-color: #4a3008;
+            background: var(--amber-dim);
+        }
+        .btn-amber:hover:not(:disabled) {
+            background: #4a3008;
+            border-color: var(--amber);
+        }
+        .btn.loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .btn.loading .btn-text { opacity: 0; }
+        .btn.loading::after {
+            content: '';
+            position: absolute;
+            width: 13px; height: 13px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        .btn-add {
+            width: 100%;
+            padding: 11px;
+            background: transparent;
+            border: 1px dashed var(--border-light);
+            color: var(--text-muted);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-add svg { width: 13px; height: 13px; }
+        .btn-add:hover {
+            border-color: var(--blue);
+            border-style: solid;
+            color: var(--blue);
+            background: var(--blue-dim);
+        }
+
+        /* ─── Modals ─── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            width: 460px;
+            max-width: 100%;
+            box-shadow: var(--shadow-lg);
+            animation: modal-in 0.2s ease;
+        }
+        @keyframes modal-in {
+            from { transform: translateY(-12px) scale(0.98); opacity: 0; }
+            to   { transform: translateY(0) scale(1);        opacity: 1; }
+        }
+        .modal-header {
+            padding: 20px 22px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .modal-icon {
+            width: 38px; height: 38px;
+            border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .modal-icon svg { width: 18px; height: 18px; }
+        .modal-icon.blue   { background: var(--blue-dim);   color: var(--blue);   border: 1px solid var(--blue-mid); }
+        .modal-icon.green  { background: var(--green-dim);  color: var(--green);  border: 1px solid #0a4028; }
+        .modal-icon.amber  { background: var(--amber-dim);  color: var(--amber);  border: 1px solid #4a3008; }
+        .modal-icon.purple { background: var(--purple-dim); color: var(--purple); border: 1px solid #381c7a; }
+        .modal-title-group { flex: 1; }
+        .modal-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.2px;
+            margin-bottom: 3px;
+        }
+        .modal-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .modal-close {
+            width: 28px; height: 28px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+        .modal-close:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+        .modal-close svg { width: 12px; height: 12px; }
+        .modal-body { padding: 20px 22px; }
+        .modal-info-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            margin-bottom: 18px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        .modal-info-box svg { width: 14px; height: 14px; color: var(--blue); flex-shrink: 0; margin-top: 1px; }
+        .modal-info-box p { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+        .form-group { margin-bottom: 16px; }
+        .form-group:last-of-type { margin-bottom: 0; }
+        .form-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 7px;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 9px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+        }
+        .form-input::placeholder { color: var(--text-muted); }
+        .form-textarea { resize: vertical; min-height: 72px; font-size: 12px; line-height: 1.5; }
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%234b617a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+            cursor: pointer;
+        }
+        .form-select option { background: var(--bg-secondary); }
+        .modal-footer {
+            padding: 14px 22px 20px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            border-top: 1px solid var(--border);
+        }
+        .modal-footer .btn { padding: 8px 18px; font-size: 12px; }
+
+        /* ─── Empty State ─── */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 24px;
+            color: var(--text-muted);
+            flex: 1;
+            gap: 14px;
+        }
+        .empty-icon {
+            width: 52px; height: 52px;
+            border-radius: 50%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0.6;
+        }
+        .empty-icon svg { width: 22px; height: 22px; }
+        .empty-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .empty-text {
+            font-size: 12px;
+            text-align: center;
+            line-height: 1.6;
+            max-width: 220px;
+        }
+
+        /* ─── Toast ─── */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 400;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            padding: 11px 14px;
+            font-size: 13px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toast-in 0.25s ease;
+            max-width: 380px;
+            pointer-events: auto;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .toast-icon {
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .toast-icon svg { width: 10px; height: 10px; }
+        .toast.success .toast-icon { background: var(--green-dim); color: var(--green); border: 1px solid #0a4028; }
+        .toast.error   .toast-icon { background: var(--red-dim);   color: var(--red);   border: 1px solid #5a1020; }
+        .toast.info    .toast-icon { background: var(--blue-dim);  color: var(--blue);  border: 1px solid var(--blue-mid); }
+        .toast.success { border-left: 3px solid var(--green); }
+        .toast.error   { border-left: 3px solid var(--red); }
+        .toast.info    { border-left: 3px solid var(--blue); }
+        .toast-msg { color: var(--text-primary); line-height: 1.4; flex: 1; }
+        .toast-close {
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex; align-items: center;
+            flex-shrink: 0;
+            opacity: 0.6;
+            transition: opacity 0.15s;
+        }
+        .toast-close:hover { opacity: 1; }
+        .toast-close svg { width: 12px; height: 12px; }
+        @keyframes toast-in {
+            from { transform: translateX(20px); opacity: 0; }
+            to   { transform: translateX(0);    opacity: 1; }
+        }
+
+        /* ─── Progress Overlay (for long operations) ─── */
+        .progress-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(7,11,19,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+        }
+        .progress-overlay.active { display: flex; }
+        .progress-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            padding: 36px 40px;
+            width: 400px;
+            max-width: 90vw;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+            animation: modal-in 0.2s ease;
+        }
+        .progress-spinner-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+        .progress-spinner {
+            width: 52px; height: 52px;
+            border: 3px solid var(--border);
+            border-top-color: var(--blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .progress-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            letter-spacing: -0.2px;
+        }
+        .progress-message {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+        .progress-steps-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: left;
+        }
+        .progress-step-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 8px 12px;
+            border-radius: var(--radius-xs);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            transition: all 0.3s;
+        }
+        .progress-step-item.active {
+            color: var(--blue);
+            background: var(--blue-dim);
+            border-color: var(--blue-mid);
+        }
+        .progress-step-item.done {
+            color: var(--green);
+            background: var(--green-dim);
+            border-color: #0a4028;
+        }
+        .progress-step-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            border: 2px solid currentColor;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .progress-step-item.active .progress-step-dot {
+            border-color: var(--blue);
+            background: var(--blue);
+            animation: pulse-dot 1s ease-in-out infinite;
+        }
+        .progress-step-item.done .progress-step-dot {
+            border-color: var(--green);
+            background: var(--green);
+        }
+
+        /* ─── Animations ─── */
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── Confirm Dialog ─── */
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 600;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .confirm-overlay.active { display: flex; }
+        .confirm-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            width: 380px;
+            max-width: 100%;
+            box-shadow: var(--shadow-lg);
+            animation: modal-in 0.2s ease;
+            overflow: hidden;
+        }
+        .confirm-header {
+            padding: 20px 22px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .confirm-icon {
+            width: 36px; height: 36px;
+            background: var(--red-dim);
+            border: 1px solid #5a1020;
+            border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--red);
+            flex-shrink: 0;
+        }
+        .confirm-icon svg { width: 16px; height: 16px; }
+        .confirm-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .confirm-body { padding: 16px 22px 20px; }
+        .confirm-msg { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+        .confirm-name {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .confirm-footer {
+            padding: 12px 22px 18px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .confirm-footer .btn { padding: 8px 18px; font-size: 12px; }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 1300px) {
+            .dashboard { grid-template-columns: 1fr 1fr; }
+            .pipeline { grid-column: 1 / -1; }
+        }
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; padding: 14px; gap: 14px; }
+            .header { padding: 0 16px; }
+            .pipeline { flex-direction: column; gap: 12px; }
+            .pipeline-step::after { display: none; }
+            .pipeline-arrow { transform: rotate(90deg); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ─── Header ─── -->
+<header class="header">
+    <div class="header-brand">
+        <div class="header-logo">
+            <svg viewBox="0 0 20 20" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="16" height="11" rx="2"/>
+                <path d="M7 17h6M10 14v3"/>
+                <path d="M6 7h3M6 10h5"/>
+                <circle cx="14" cy="8.5" r="1.5" fill="white" stroke="none"/>
+            </svg>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:6px;">
+            <span class="header-title">VM Platform</span>
+            <span class="header-sep">/</span>
+            <span class="header-sub">VirtualBox Manager</span>
+        </div>
+    </div>
+    <div class="header-right">
+        <div class="header-status">
+            <span class="status-dot"></span>
+            VBoxManage activo
+        </div>
+        <button class="header-refresh" id="refresh-btn" onclick="refreshDashboard()" title="Actualizar dashboard">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2"/>
+                <path d="M13.5 2.5v2.5H11"/>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<!-- ─── Main ─── -->
+<main class="dashboard">
+
+    <!-- Pipeline flow -->
+    <div class="pipeline">
+        <div class="pipeline-step step-1">
+            <div class="pipeline-step-num">1</div>
+            <div class="pipeline-step-info">
+                <div class="pipeline-step-title">VM Base</div>
+                <div class="pipeline-step-desc">Registra una VM existente de VirtualBox como imagen base del sistema.</div>
+            </div>
+        </div>
+        <div class="pipeline-arrow">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 8h10M9 4l4 4-4 4"/>
+            </svg>
+        </div>
+        <div class="pipeline-step step-2">
+            <div class="pipeline-step-num">2</div>
+            <div class="pipeline-step-info">
+                <div class="pipeline-step-title">Llaves SSH + Disco</div>
+                <div class="pipeline-step-desc">Genera llaves RSA y convierte el disco a modo multiattach compartido.</div>
+            </div>
+        </div>
+        <div class="pipeline-arrow">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 8h10M9 4l4 4-4 4"/>
+            </svg>
+        </div>
+        <div class="pipeline-step step-3">
+            <div class="pipeline-step-num">3</div>
+            <div class="pipeline-step-info">
+                <div class="pipeline-step-title">VM de Usuario</div>
+                <div class="pipeline-step-desc">Crea VMs independientes que comparten el disco base y configura accesos SSH.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Base VMs ═══ -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-header-left">
+                <div class="section-icon s1">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="1" y="2" width="14" height="10" rx="2"/>
+                        <path d="M5 14h6M8 12v2"/>
+                        <path d="M4 6h3M4 8.5h4"/>
+                        <circle cx="11.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/>
+                    </svg>
+                </div>
+                <div class="section-label">
+                    <span class="section-title">Maquinas Virtuales Base</span>
+                    <span class="section-subtitle">paso 1 de 3</span>
+                </div>
+            </div>
+            <span class="section-badge" id="base-count">0</span>
+        </div>
+        <div class="section-body" id="base-vms-list">
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="3"/>
+                        <path d="M8 21h8M12 17v4"/>
+                    </svg>
+                </div>
+                <div class="empty-title">Sin maquinas base</div>
+                <div class="empty-text">Agrega una VM que ya este registrada en VirtualBox para comenzar.</div>
+            </div>
+        </div>
+        <div class="section-footer">
+            <button class="btn-add" onclick="openModal('add-base-vm')">
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M7 2v10M2 7h10"/>
+                </svg>
+                Agregar VM Base
+            </button>
+        </div>
+    </section>
+
+    <!-- ═══ Discos ═══ -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-header-left">
+                <div class="section-icon s2">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="8" cy="5" rx="6" ry="2.5"/>
+                        <path d="M2 5v4c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V5"/>
+                        <path d="M2 9v2c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V9"/>
+                    </svg>
+                </div>
+                <div class="section-label">
+                    <span class="section-title">Discos Multiconexion</span>
+                    <span class="section-subtitle">paso 2 de 3</span>
+                </div>
+            </div>
+            <span class="section-badge" id="disk-count">0</span>
+        </div>
+        <div class="section-body" id="disks-list">
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="12" cy="7" rx="8" ry="3.5"/>
+                        <path d="M4 7v5c0 1.93 3.58 3.5 8 3.5s8-1.57 8-3.5V7"/>
+                        <path d="M4 12v5c0 1.93 3.58 3.5 8 3.5s8-1.57 8-3.5v-5"/>
+                    </svg>
+                </div>
+                <div class="empty-title">Sin discos multiconexion</div>
+                <div class="empty-text">Crea un disco desde una VM base con llaves SSH configuradas.</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══ User VMs ═══ -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-header-left">
+                <div class="section-icon s3">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="8" cy="5" r="2.5"/>
+                        <path d="M2 13c0-3.31 2.69-6 6-6s6 2.69 6 6"/>
+                    </svg>
+                </div>
+                <div class="section-label">
+                    <span class="section-title">Maquinas de Usuario</span>
+                    <span class="section-subtitle">paso 3 de 3</span>
+                </div>
+            </div>
+            <span class="section-badge" id="user-count">0</span>
+        </div>
+        <div class="section-body" id="user-vms-list">
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="7" r="4"/>
+                        <path d="M3 21v-1a9 9 0 0 1 18 0v1"/>
+                    </svg>
+                </div>
+                <div class="empty-title">Sin maquinas de usuario</div>
+                <div class="empty-text">Crea una VM de usuario desde un disco multiconexion disponible.</div>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ─── Progress Overlay ─── -->
+<div class="progress-overlay" id="progress-overlay">
+    <div class="progress-card">
+        <div class="progress-spinner-wrap">
+            <div class="progress-spinner"></div>
+        </div>
+        <div class="progress-title" id="progress-title">Procesando...</div>
+        <div class="progress-message" id="progress-message">Por favor espera, esto puede tomar varios segundos.</div>
+        <div class="progress-steps-list" id="progress-steps"></div>
+    </div>
+</div>
+
+<!-- ─── Confirm Dialog ─── -->
+<div class="confirm-overlay" id="confirm-overlay">
+    <div class="confirm-card">
+        <div class="confirm-header">
+            <div class="confirm-icon">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3v5M8 11v1"/>
+                    <circle cx="8" cy="8" r="6.5"/>
+                </svg>
+            </div>
+            <span class="confirm-title">Confirmar eliminacion</span>
+        </div>
+        <div class="confirm-body">
+            <p class="confirm-msg" id="confirm-msg">Esta accion no se puede deshacer.</p>
+        </div>
+        <div class="confirm-footer">
+            <button class="btn" onclick="closeConfirm(false)">Cancelar</button>
+            <button class="btn btn-red" id="confirm-ok-btn" onclick="closeConfirm(true)">Eliminar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ MODALS ═══ -->
+
+<!-- Modal: Add Base VM -->
+<div class="modal-overlay" id="modal-add-base-vm">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-icon blue">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="16" height="11" rx="2"/>
+                    <path d="M7 17h6M10 14v3"/>
+                    <path d="M10 8v4M8 10h4"/>
+                </svg>
+            </div>
+            <div class="modal-title-group">
+                <div class="modal-title">Agregar VM Base</div>
+                <div class="modal-subtitle">Paso 1 — Registrar maquina virtual</div>
+            </div>
+            <button class="modal-close" onclick="closeModal('add-base-vm')">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M1 1l10 10M11 1L1 11"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-info-box">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="8" cy="8" r="6.5"/>
+                    <path d="M8 7v4M8 5v.5"/>
+                </svg>
+                <p>La VM debe estar previamente registrada en VirtualBox. Solo se registra como referencia; no se modifica.</p>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Maquina Virtual</label>
+                <select class="form-select" id="base-vm-name-select">
+                    <option value="">Cargando VMs disponibles...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Descripcion <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+                <textarea class="form-textarea" id="base-vm-desc" placeholder="Describe el proposito de esta VM base..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeModal('add-base-vm')">Cancelar</button>
+            <button class="btn btn-primary" id="btn-add-base-vm" onclick="addBaseVM()">
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M7 2v10M2 7h10"/>
+                </svg>
+                <span class="btn-text">Agregar VM</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create Root Keys -->
+<div class="modal-overlay" id="modal-create-keys">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-icon amber">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="8" cy="11" r="4"/>
+                    <path d="M11.5 7.5L16 3M14 3h3v3"/>
+                    <circle cx="8" cy="11" r="1.5" fill="currentColor" stroke="none"/>
+                </svg>
+            </div>
+            <div class="modal-title-group">
+                <div class="modal-title">Configurar Llaves SSH Root</div>
+                <div class="modal-subtitle">Paso 2a — Autenticacion por clave publica</div>
+            </div>
+            <button class="modal-close" onclick="closeModal('create-keys')">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M1 1l10 10M11 1L1 11"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-info-box">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="8" cy="8" r="6.5"/>
+                    <path d="M8 7v4M8 5v.5"/>
+                </svg>
+                <p>Se genera un par de llaves RSA de 1024 bits. La VM se iniciara temporalmente para desplegar la llave publica al usuario root via SSH. Este proceso tarda entre 30 y 60 segundos.</p>
+            </div>
+            <input type="hidden" id="keys-vm-name">
+            <div class="form-group">
+                <label class="form-label">Contrasena de Root</label>
+                <input type="password" class="form-input" id="root-password" placeholder="Contrasena actual del usuario root en la VM" autocomplete="new-password">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeModal('create-keys')">Cancelar</button>
+            <button class="btn btn-primary" id="btn-create-keys" onclick="createRootKeys()">
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="5.5" cy="8" r="3"/>
+                    <path d="M8 5.5L12 2M10.5 2h2v2"/>
+                </svg>
+                <span class="btn-text">Generar Llaves</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create User VM -->
+<div class="modal-overlay" id="modal-create-user-vm">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-icon green">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="16" height="11" rx="2"/>
+                    <path d="M7 17h6M10 14v3"/>
+                    <path d="M10 8v4M8 10h4"/>
+                </svg>
+            </div>
+            <div class="modal-title-group">
+                <div class="modal-title">Crear VM de Usuario</div>
+                <div class="modal-subtitle">Paso 3a — Nueva maquina desde disco compartido</div>
+            </div>
+            <button class="modal-close" onclick="closeModal('create-user-vm')">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M1 1l10 10M11 1L1 11"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-info-box">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="8" cy="8" r="6.5"/>
+                    <path d="M8 7v4M8 5v.5"/>
+                </svg>
+                <p>Se creara una nueva VM que comparte el disco multiattach de la base. Cada VM tiene su propia capa de escritura aislada (copy-on-write).</p>
+            </div>
+            <input type="hidden" id="user-vm-disk-name">
+            <div class="form-group">
+                <label class="form-label">Nombre de la VM</label>
+                <input type="text" class="form-input" id="user-vm-name" placeholder="Nombre unico para identificar la VM">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Descripcion <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+                <textarea class="form-textarea" id="user-vm-desc" placeholder="A quien pertenece o para que se usara esta VM..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeModal('create-user-vm')">Cancelar</button>
+            <button class="btn btn-primary" id="btn-create-user-vm" onclick="createUserVM()">
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M7 2v10M2 7h10"/>
+                </svg>
+                <span class="btn-text">Crear VM</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create User in VM -->
+<div class="modal-overlay" id="modal-create-user">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-icon purple">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="10" cy="7" r="3.5"/>
+                    <path d="M3 18c0-3.87 3.13-7 7-7s7 3.13 7 7"/>
+                    <path d="M15 4l2 2-3 3"/>
+                </svg>
+            </div>
+            <div class="modal-title-group">
+                <div class="modal-title">Crear Usuario en VM</div>
+                <div class="modal-subtitle">Paso 3b — Cuenta de sistema con acceso SSH</div>
+            </div>
+            <button class="modal-close" onclick="closeModal('create-user')">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M1 1l10 10M11 1L1 11"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-info-box">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="8" cy="8" r="6.5"/>
+                    <path d="M8 7v4M8 5v.5"/>
+                </svg>
+                <p>Se creara la cuenta en el sistema operativo de la VM y se desplegaran llaves SSH RSA para autenticacion sin contrasena. La VM se iniciara automaticamente durante el proceso.</p>
+            </div>
+            <input type="hidden" id="create-user-vm-name">
+            <div class="form-group">
+                <label class="form-label">Nombre de usuario</label>
+                <input type="text" class="form-input" id="new-username" placeholder="ej: estudiante01" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Contrasena del usuario</label>
+                <input type="password" class="form-input" id="new-user-password" placeholder="Contrasena para el nuevo usuario" autocomplete="new-password">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeModal('create-user')">Cancelar</button>
+            <button class="btn btn-primary" id="btn-create-user" onclick="createVMUser()">
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="6" cy="5" r="2.5"/>
+                    <path d="M1 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/>
+                    <path d="M11 3l2 2-2.5 2.5"/>
+                </svg>
+                <span class="btn-text">Crear Usuario</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// SVG Icon helpers
+// ═══════════════════════════════════════════════════════
+const ICONS = {
+    key: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="8.5" r="2.8"/><path d="M7.5 6l4-4M10 2.5h2v2"/></svg>`,
+    download: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2v7M4.5 7L7 9.5 9.5 7"/><path d="M2 12h10"/></svg>`,
+    disk: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="7" cy="4.5" rx="5" ry="2"/><path d="M2 4.5v3c0 1.1 2.24 2 5 2s5-.9 5-2v-3"/><path d="M2 7.5v2c0 1.1 2.24 2 5 2s5-.9 5-2v-2"/></svg>`,
+    user: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="4.5" r="2.5"/><path d="M1 13c0-3.31 2.69-6 6-6s6 2.69 6 6"/></svg>`,
+    trash: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h10M5 4V2.5h4V4M11 4l-.7 8H3.7L3 4"/></svg>`,
+    link: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 8.5a3.5 3.5 0 0 0 5 0l1.5-1.5a3.5 3.5 0 0 0-5-5L6.5 2.5"/><path d="M8.5 5.5a3.5 3.5 0 0 0-5 0L2 7a3.5 3.5 0 0 0 5 5l.5-.5"/></svg>`,
+    unlink: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l10 10"/><path d="M5.5 8.5a3.5 3.5 0 0 0 4.2.5M8.5 5.5a3.5 3.5 0 0 0-4.2-.5"/></svg>`,
+    add: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg>`,
+    check: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3 3 5-5"/></svg>`,
+    vm: `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="12" height="8" rx="1.5"/><path d="M4 12h6M7 10v2"/></svg>`,
+};
+
+// ═══════════════════════════════════════════════════════
+// Progress Overlay
+// ═══════════════════════════════════════════════════════
+function showProgress(title, message, steps) {
+    document.getElementById('progress-title').textContent = title;
+    document.getElementById('progress-message').textContent = message;
+    const stepsEl = document.getElementById('progress-steps');
+    if (steps && steps.length) {
+        stepsEl.innerHTML = steps.map((s, i) =>
+            `<div class="progress-step-item ${i === 0 ? 'active' : ''}" id="pstep-${i}">
+                <div class="progress-step-dot"></div>
+                <span>${s}</span>
+            </div>`
+        ).join('');
+    } else {
+        stepsEl.innerHTML = '';
+    }
+    document.getElementById('progress-overlay').classList.add('active');
+}
+
+function updateProgressStep(idx) {
+    document.querySelectorAll('.progress-step-item').forEach((el, i) => {
+        el.classList.remove('active', 'done');
+        if (i < idx) el.classList.add('done');
+        if (i === idx) el.classList.add('active');
+    });
+}
+
+function hideProgress() {
+    document.getElementById('progress-overlay').classList.remove('active');
+}
+
+// ═══════════════════════════════════════════════════════
+// Confirm Dialog
+// ═══════════════════════════════════════════════════════
+let _confirmResolve = null;
+function showConfirm(message) {
+    document.getElementById('confirm-msg').innerHTML = message;
+    document.getElementById('confirm-overlay').classList.add('active');
+    return new Promise(resolve => { _confirmResolve = resolve; });
+}
+function closeConfirm(result) {
+    document.getElementById('confirm-overlay').classList.remove('active');
+    if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
+}
+
+// ═══════════════════════════════════════════════════════
+// Button loading state
+// ═══════════════════════════════════════════════════════
+function setBtnLoading(id, loading) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    if (loading) btn.classList.add('loading');
+    else btn.classList.remove('loading');
+    btn.disabled = loading;
+}
+
+// ═══════════════════════════════════════════════════════
+// API Helper
+// ═══════════════════════════════════════════════════════
+async function apiCall(url, method = 'GET', body = null) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    try {
+        const res = await fetch(url, opts);
+        return await res.json();
+    } catch (err) {
+        return { success: false, message: 'Error de conexion: ' + err.message };
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// Toast Notifications
+// ═══════════════════════════════════════════════════════
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    const iconSvgs = {
+        success: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3 3 5-5"/></svg>`,
+        error:   `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg>`,
+        info:    `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 5v4M6 3v.5"/><circle cx="6" cy="6" r="5"/></svg>`,
+    };
+    toast.innerHTML = `
+        <div class="toast-icon">${iconSvgs[type] || iconSvgs.info}</div>
+        <span class="toast-msg">${message}</span>
+        <span class="toast-close" onclick="this.parentElement.remove()">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg>
+        </span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(16px)';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 5000);
+}
+
+// ═══════════════════════════════════════════════════════
+// Modal Management
+// ═══════════════════════════════════════════════════════
+function openModal(name) {
+    document.getElementById(`modal-${name}`).classList.add('active');
+    if (name === 'add-base-vm') loadAvailableVMs();
+}
+function closeModal(name) {
+    document.getElementById(`modal-${name}`).classList.remove('active');
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+        if (e.target === overlay) overlay.classList.remove('active');
+    });
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+        closeConfirm(false);
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// Load Available VMs
+// ═══════════════════════════════════════════════════════
+async function loadAvailableVMs() {
+    const select = document.getElementById('base-vm-name-select');
+    select.innerHTML = '<option value="">Cargando VMs de VirtualBox...</option>';
+    select.disabled = true;
+    const res = await apiCall('/api/vms/available');
+    select.disabled = false;
+    if (res.success && res.data && res.data.length) {
+        select.innerHTML = '<option value="">— Seleccionar VM —</option>' +
+            res.data.map(vm => `<option value="${vm}">${vm}</option>`).join('');
+    } else {
+        select.innerHTML = '<option value="">No se encontraron VMs disponibles</option>';
+        showToast(res.message || 'No se pudieron cargar las VMs', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// Dashboard Refresh
+// ═══════════════════════════════════════════════════════
+async function refreshDashboard() {
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('spinning');
+    const res = await apiCall('/api/dashboard');
+    btn.classList.remove('spinning');
+    if (!res.success) { showToast('Error al actualizar el dashboard', 'error'); return; }
+    const d = res.data;
+    renderBaseVMs(d.base_vms || {});
+    renderDisks(d.disks || {});
+    renderUserVMs(d.user_vms || {});
+}
+
+// ═══════════════════════════════════════════════════════
+// Render Base VMs
+// ═══════════════════════════════════════════════════════
+function renderBaseVMs(vms) {
+    const container = document.getElementById('base-vms-list');
+    const keys = Object.keys(vms);
+    document.getElementById('base-count').textContent = keys.length;
+
+    if (keys.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="3"/><path d="M8 21h8M12 17v4"/>
+                    </svg>
+                </div>
+                <div class="empty-title">Sin maquinas base</div>
+                <div class="empty-text">Agrega una VM que ya este registrada en VirtualBox para comenzar el flujo.</div>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = keys.map(name => {
+        const vm = vms[name];
+        const step1 = true;
+        const step2 = vm.keys_created;
+        const step3 = vm.disk_created;
+
+        const progressStep = step3 ? 3 : step2 ? 2 : 1;
+        const badgeClass = step3 ? 'badge-green' : step2 ? 'badge-amber' : 'badge-muted';
+        const badgeText = step3 ? 'Listo' : step2 ? 'Llaves OK' : 'Pendiente';
+
+        return `
+        <div class="card">
+            <div class="card-header">
+                <span class="card-name">${vm.name}</span>
+                <span class="badge ${badgeClass}">${badgeText}</span>
+            </div>
+            ${vm.description ? `<div class="card-desc">${vm.description}</div>` : ''}
+            <div class="card-steps">
+                <div class="card-step done">
+                    <div class="card-step-dot"></div>Registrada
+                </div>
+                <div class="card-step ${step2 ? 'done' : progressStep === 1 ? 'active' : ''}">
+                    <div class="card-step-dot"></div>Llaves SSH
+                </div>
+                <div class="card-step ${step3 ? 'done' : progressStep === 2 && step2 ? 'active' : ''}">
+                    <div class="card-step-dot"></div>Disco
+                </div>
+            </div>
+            <div class="card-actions">
+                <button class="btn btn-amber" onclick="openCreateKeys('${vm.name}')" ${step2 ? 'disabled' : ''}>
+                    ${ICONS.key}<span class="btn-text">Crear Llaves Root</span>
+                </button>
+                <button class="btn" onclick="downloadRootKeys('${vm.name}')" ${!step2 ? 'disabled' : ''} title="Descargar llave privada root">
+                    ${ICONS.download}<span class="btn-text">Descargar Llaves</span>
+                </button>
+                <button class="btn btn-green" onclick="createDisk('${vm.name}')" ${!step2 || step3 ? 'disabled' : ''}>
+                    ${ICONS.disk}<span class="btn-text">Crear Disco</span>
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// Render Disks
+// ═══════════════════════════════════════════════════════
+function renderDisks(disks) {
+    const container = document.getElementById('disks-list');
+    const keys = Object.keys(disks);
+    document.getElementById('disk-count').textContent = keys.length;
+
+    if (keys.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="12" cy="7" rx="8" ry="3.5"/>
+                        <path d="M4 7v5c0 1.93 3.58 3.5 8 3.5s8-1.57 8-3.5V7"/>
+                        <path d="M4 12v5c0 1.93 3.58 3.5 8 3.5s8-1.57 8-3.5v-5"/>
+                    </svg>
+                </div>
+                <div class="empty-title">Sin discos multiconexion</div>
+                <div class="empty-text">Crea un disco desde una VM base que tenga las llaves SSH configuradas.</div>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = keys.map(name => {
+        const disk = disks[name];
+        return `
+        <div class="card">
+            <div class="card-header">
+                <span class="card-name">${disk.name}</span>
+                <span class="badge ${disk.connected ? 'badge-blue' : 'badge-red'}">
+                    ${disk.connected ? 'Conectado' : 'Desconectado'}
+                </span>
+            </div>
+            <div class="card-meta">
+                <span class="meta-item">
+                    ${ICONS.vm} ${disk.base_vm_name}
+                </span>
+                <span class="meta-item">
+                    ${ICONS.disk} multiattach
+                </span>
+            </div>
+            <div class="card-divider"></div>
+            <div class="card-actions">
+                <button class="btn btn-green" onclick="openCreateUserVM('${disk.name}')">
+                    ${ICONS.add}<span class="btn-text">Nueva VM</span>
+                </button>
+                <button class="btn" onclick="disconnectDisk('${disk.name}')" ${!disk.connected ? 'disabled' : ''} title="Desconectar disco de la VM base">
+                    ${ICONS.unlink}<span class="btn-text">Desconectar</span>
+                </button>
+                <button class="btn btn-amber" onclick="connectDisk('${disk.name}')" ${disk.connected ? 'disabled' : ''} title="Reconectar disco a la VM base">
+                    ${ICONS.link}<span class="btn-text">Conectar</span>
+                </button>
+                <button class="btn btn-red" onclick="deleteDisk('${disk.name}')">
+                    ${ICONS.trash}<span class="btn-text">Eliminar</span>
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// Render User VMs
+// ═══════════════════════════════════════════════════════
+function renderUserVMs(vms) {
+    const container = document.getElementById('user-vms-list');
+    const keys = Object.keys(vms);
+    document.getElementById('user-count').textContent = keys.length;
+
+    if (keys.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="7" r="4"/><path d="M3 21v-1a9 9 0 0 1 18 0v1"/>
+                    </svg>
+                </div>
+                <div class="empty-title">Sin maquinas de usuario</div>
+                <div class="empty-text">Crea una VM desde un disco multiconexion disponible.</div>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = keys.map(name => {
+        const vm = vms[name];
+        const badgeClass = vm.user_created ? 'badge-green' : 'badge-amber';
+        const badgeText  = vm.user_created ? vm.username : 'Sin usuario';
+        return `
+        <div class="card">
+            <div class="card-header">
+                <span class="card-name">${vm.name}</span>
+                <span class="badge ${badgeClass}">${badgeText}</span>
+            </div>
+            ${vm.description ? `<div class="card-desc">${vm.description}</div>` : ''}
+            <div class="card-meta">
+                <span class="meta-item">${ICONS.disk} ${vm.disk_name}</span>
+                <span class="meta-item">${ICONS.vm} ${vm.base_vm_name}</span>
+            </div>
+            <div class="card-steps">
+                <div class="card-step done">
+                    <div class="card-step-dot"></div>VM Creada
+                </div>
+                <div class="card-step ${vm.user_created ? 'done' : 'active'}">
+                    <div class="card-step-dot"></div>Usuario SSH
+                </div>
+            </div>
+            <div class="card-actions">
+                <button class="btn btn-green" onclick="openCreateUser('${vm.name}')" ${vm.user_created ? 'disabled' : ''}>
+                    ${ICONS.user}<span class="btn-text">Crear Usuario</span>
+                </button>
+                <button class="btn" onclick="downloadUserKeys('${vm.name}')" ${!vm.user_created ? 'disabled' : ''} title="Descargar llave privada del usuario">
+                    ${ICONS.download}<span class="btn-text">Descargar Llaves</span>
+                </button>
+                <button class="btn btn-red" onclick="deleteUserVM('${vm.name}')">
+                    ${ICONS.trash}<span class="btn-text">Eliminar VM</span>
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// Actions: Base VMs
+// ═══════════════════════════════════════════════════════
+async function addBaseVM() {
+    const name = document.getElementById('base-vm-name-select').value;
+    const desc = document.getElementById('base-vm-desc').value;
+    if (!name) { showToast('Selecciona una maquina virtual', 'error'); return; }
+
+    setBtnLoading('btn-add-base-vm', true);
+    const res = await apiCall('/api/base-vm/add', 'POST', { name, description: desc });
+    setBtnLoading('btn-add-base-vm', false);
+
+    if (res.success) {
+        showToast(res.message, 'success');
+        closeModal('add-base-vm');
+        refreshDashboard();
+    } else {
+        showToast(res.message, 'error');
+    }
+}
+
+function openCreateKeys(vmName) {
+    document.getElementById('keys-vm-name').value = vmName;
+    document.getElementById('root-password').value = '';
+    openModal('create-keys');
+}
+
+async function createRootKeys() {
+    const vmName   = document.getElementById('keys-vm-name').value;
+    const password = document.getElementById('root-password').value;
+    if (!password) { showToast('Ingresa la contrasena de root', 'error'); return; }
+
+    closeModal('create-keys');
+    showProgress(
+        'Configurando llaves SSH',
+        'La VM se iniciara automaticamente. Este proceso tarda entre 30 y 60 segundos.',
+        [
+            'Generando par de llaves RSA de 1024 bits',
+            'Iniciando la maquina virtual',
+            'Conectando por SSH con contrasena',
+            'Desplegando llave publica en /root/.ssh',
+            'Verificando autenticacion por clave',
+            'Apagando la maquina virtual',
+        ]
+    );
+
+    // Simulate step progression while waiting
+    let stepIdx = 0;
+    const stepTimer = setInterval(() => {
+        stepIdx = Math.min(stepIdx + 1, 5);
+        updateProgressStep(stepIdx);
+    }, 8000);
+
+    const res = await apiCall('/api/base-vm/create-keys', 'POST', { vm_name: vmName, root_password: password });
+
+    clearInterval(stepTimer);
+    hideProgress();
+
+    if (res.success) {
+        showToast(res.message, 'success');
+        refreshDashboard();
+    } else {
+        showToast(res.message, 'error');
+    }
+}
+
+function downloadRootKeys(vmName) {
+    window.open(`/api/base-vm/download-keys?vm_name=${encodeURIComponent(vmName)}`, '_blank');
+}
+
+async function createDisk(baseVMName) {
+    closeModal('create-disk');
+    showProgress(
+        'Creando disco multiattach',
+        'El disco base se convertira al tipo multiattach para ser compartido entre multiples VMs.',
+        [
+            'Apagando la VM base',
+            'Desconectando el disco del controlador SATA',
+            'Convirtiendo tipo de disco a multiattach',
+            'Reconectando el disco a la VM base',
+        ]
+    );
+
+    let stepIdx = 0;
+    const stepTimer = setInterval(() => {
+        stepIdx = Math.min(stepIdx + 1, 3);
+        updateProgressStep(stepIdx);
+    }, 6000);
+
+    const res = await apiCall('/api/disk/create', 'POST', { base_vm_name: baseVMName });
+
+    clearInterval(stepTimer);
+    hideProgress();
+
+    if (res.success) {
+        showToast(res.message, 'success');
+        refreshDashboard();
+    } else {
+        showToast(res.message, 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// Actions: Disks
+// ═══════════════════════════════════════════════════════
+async function disconnectDisk(diskName) {
+    const res = await apiCall('/api/disk/disconnect', 'POST', { disk_name: diskName });
+    showToast(res.message, res.success ? 'success' : 'error');
+    if (res.success) refreshDashboard();
+}
+
+async function connectDisk(diskName) {
+    const res = await apiCall('/api/disk/connect', 'POST', { disk_name: diskName });
+    showToast(res.message, res.success ? 'success' : 'error');
+    if (res.success) refreshDashboard();
+}
+
+async function deleteDisk(diskName) {
+    const confirmed = await showConfirm(
+        `Estas a punto de eliminar el disco <span class="confirm-name">"${diskName}"</span>.<br>Esta accion eliminara el archivo VDI del disco y no se puede deshacer.`
+    );
+    if (!confirmed) return;
+    const res = await apiCall('/api/disk/delete', 'POST', { disk_name: diskName });
+    showToast(res.message, res.success ? 'success' : 'error');
+    if (res.success) refreshDashboard();
+}
+
+function openCreateUserVM(diskName) {
+    document.getElementById('user-vm-disk-name').value = diskName;
+    document.getElementById('user-vm-name').value = '';
+    document.getElementById('user-vm-desc').value = '';
+    openModal('create-user-vm');
+}
+
+// ═══════════════════════════════════════════════════════
+// Actions: User VMs
+// ═══════════════════════════════════════════════════════
+async function createUserVM() {
+    const name     = document.getElementById('user-vm-name').value.trim();
+    const desc     = document.getElementById('user-vm-desc').value;
+    const diskName = document.getElementById('user-vm-disk-name').value;
+    if (!name) { showToast('Ingresa un nombre para la VM', 'error'); return; }
+
+    setBtnLoading('btn-create-user-vm', true);
+    const res = await apiCall('/api/user-vm/create', 'POST', { name, description: desc, disk_name: diskName });
+    setBtnLoading('btn-create-user-vm', false);
+
+    if (res.success) {
+        showToast(res.message, 'success');
+        closeModal('create-user-vm');
+        refreshDashboard();
+    } else {
+        showToast(res.message, 'error');
+    }
+}
+
+function openCreateUser(vmName) {
+    document.getElementById('create-user-vm-name').value = vmName;
+    document.getElementById('new-username').value = '';
+    document.getElementById('new-user-password').value = '';
+    openModal('create-user');
+}
+
+async function createVMUser() {
+    const vmName   = document.getElementById('create-user-vm-name').value;
+    const username = document.getElementById('new-username').value.trim();
+    const password = document.getElementById('new-user-password').value;
+    if (!username || !password) { showToast('El nombre de usuario y la contrasena son obligatorios', 'error'); return; }
+
+    closeModal('create-user');
+    showProgress(
+        'Creando cuenta de usuario',
+        'La VM se iniciara para configurar la cuenta y desplegar las llaves SSH. Esto puede tardar entre 30 y 60 segundos.',
+        [
+            'Generando par de llaves RSA para el usuario',
+            'Iniciando la maquina virtual',
+            'Creando cuenta en el sistema operativo',
+            'Configurando directorio .ssh y permisos',
+            'Desplegando llave publica del usuario',
+            'Verificando acceso SSH sin contrasena',
+            'Apagando la maquina virtual',
+        ]
+    );
+
+    let stepIdx = 0;
+    const stepTimer = setInterval(() => {
+        stepIdx = Math.min(stepIdx + 1, 6);
+        updateProgressStep(stepIdx);
+    }, 7000);
+
+    const res = await apiCall('/api/user-vm/create-user', 'POST', { vm_name: vmName, username, password });
+
+    clearInterval(stepTimer);
+    hideProgress();
+
+    if (res.success) {
+        showToast(res.message, 'success');
+        refreshDashboard();
+    } else {
+        showToast(res.message, 'error');
+    }
+}
+
+function downloadUserKeys(vmName) {
+    window.open(`/api/user-vm/download-keys?vm_name=${encodeURIComponent(vmName)}`, '_blank');
+}
+
+async function deleteUserVM(vmName) {
+    const confirmed = await showConfirm(
+        `Estas a punto de eliminar la VM <span class="confirm-name">"${vmName}"</span>.<br>Se detendra, desregistrara y eliminaran todos sus archivos.`
+    );
+    if (!confirmed) return;
+    const res = await apiCall('/api/user-vm/delete', 'POST', { vm_name: vmName });
+    showToast(res.message, res.success ? 'success' : 'error');
+    if (res.success) refreshDashboard();
+}
+
+// ═══════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    refreshDashboard();
+    setInterval(refreshDashboard, 15000);
+});
+</script>
+</body>
+</html>

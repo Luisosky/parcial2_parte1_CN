@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:\\\\Program Files\\\\Oracle\\\\VirtualBox\\\\VBoxManage.exe\" list vms)",
+      "Bash(\"C:\\\\Program Files\\\\Oracle\\\\VirtualBox\\\\VBoxManage.exe\" showvminfo \"parcial2\" --machinereadable)",
+      "Bash(go build:*)"
+    ]
+  }
+}
