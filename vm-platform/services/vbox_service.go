@@ -153,6 +153,49 @@ func (v *VBoxService) ConvertDiskToMultiAttach(diskPath string) error {
 	return err
 }
 
+// GetBaseMediumPath traverses the parent chain of a VDI and returns the root base disk path.
+// Snapshot disks are differencing media and cannot be converted to multiattach directly;
+// only the root base disk can be converted.
+func (v *VBoxService) GetBaseMediumPath(diskPath string) (string, error) {
+	for {
+		output, err := v.runCommand("showmediuminfo", "disk", diskPath)
+		if err != nil {
+			return diskPath, nil // can't determine chain, return as-is
+		}
+		var parentUUID string
+		for _, line := range strings.Split(output, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "Parent UUID:") {
+				parentUUID = strings.TrimSpace(strings.TrimPrefix(trimmed, "Parent UUID:"))
+				break
+			}
+		}
+		if parentUUID == "" || parentUUID == "base" {
+			return diskPath, nil // already the base disk
+		}
+		// This is a differencing disk; walk up to its parent
+		parentPath, err := v.getDiskPathByUUID(parentUUID)
+		if err != nil {
+			return "", fmt.Errorf("no se pudo encontrar el disco padre %s: %v", parentUUID, err)
+		}
+		diskPath = parentPath
+	}
+}
+
+func (v *VBoxService) getDiskPathByUUID(uuid string) (string, error) {
+	output, err := v.runCommand("showmediuminfo", "disk", uuid)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Location:") {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, "Location:")), nil
+		}
+	}
+	return "", fmt.Errorf("location no encontrado para UUID %s", uuid)
+}
+
 func (v *VBoxService) CreateVMFromDisk(name, diskPath, baseName string) error {
 	v.runCommand("createvm", "--name", name, "--register")
 	v.runCommand("modifyvm", name, "--memory", "1024", "--nic1", "nat")

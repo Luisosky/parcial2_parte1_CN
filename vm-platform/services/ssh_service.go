@@ -197,8 +197,10 @@ func (s *SSHService) DeployRootKeys(vmName string, rootPassword string) error {
 	return nil
 }
 
-// DeployUserKeys creates a user in the VM and deploys SSH keys
-func (s *SSHService) DeployUserKeys(vmName string, username string, password string, rootKeyPath string) error {
+// DeployUserKeys creates a user in the VM and deploys SSH keys.
+// Uses root password authentication since user VMs (multi-attach) boot
+// without the root authorized_keys from the base VM's differencing disk.
+func (s *SSHService) DeployUserKeys(vmName string, username string, password string, rootPassword string) error {
 	state, _ := s.VBoxSvc.GetVMState(vmName)
 	wasRunning := state == "running"
 
@@ -226,15 +228,16 @@ func (s *SSHService) DeployUserKeys(vmName string, username string, password str
 	pubKeyStr := strings.TrimSpace(string(pubKeyData))
 
 	remoteCommand := fmt.Sprintf(`useradd -m -s /bin/bash %s && echo "%s:%s" | chpasswd && mkdir -p /home/%s/.ssh && chmod 700 /home/%s/.ssh && echo "%s" > /home/%s/.ssh/authorized_keys && chmod 600 /home/%s/.ssh/authorized_keys && chown -R %s:%s /home/%s/.ssh`,
-		username, username, password, username, username, pubKeyStr, username, username, username, username)
+		username, username, password, username, username, pubKeyStr, username, username, username, username, username)
 
-	// Crear el usuario entrando con la llave root previamente configurada
-	err = runSSHCommandWithKey(port, "root", rootKeyPath, remoteCommand)
+	// Conectar con contraseña root (multi-attach: cada VM arranca sin el
+	// authorized_keys del disco base, por eso usamos contraseña)
+	err = runSSHCommandWithPassword(port, "root", rootPassword, remoteCommand)
 	if err != nil {
 		return fmt.Errorf("error al crear usuario: %v", err)
 	}
 
-	// Verificar conexión con el nuevo usuario
+	// Verificar conexión con el nuevo usuario usando su llave
 	err = runSSHCommandWithKey(port, username, privateKeyPath, "echo OK")
 	if err != nil {
 		return fmt.Errorf("verificación de llaves del usuario falló: %v", err)

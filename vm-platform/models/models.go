@@ -63,7 +63,8 @@ type CreateUserVMRequest struct {
 
 // CreateUserRequest is the request to create a user in a VM
 type CreateUserRequest struct {
-	VMName   string `json:"vm_name"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	VMName       string `json:"vm_name"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	RootPassword string `json:"root_password"`
 }

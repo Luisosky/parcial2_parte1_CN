@@ -109,9 +109,18 @@ func (p *PlatformService) CreateMultiAttachDisk(baseVMName string) (*models.Mult
 	if !exists {
 		return nil, fmt.Errorf("VM no encontrada")
 	}
-	diskPath, err := p.VBox.GetVMDiskPath(baseVMName)
+
+	// attachedDiskPath es lo que está actualmente conectado (puede ser un snapshot/differencing VDI)
+	attachedDiskPath, err := p.VBox.GetVMDiskPath(baseVMName)
 	if err != nil {
 		return nil, err
+	}
+
+	// baseDiskPath es el disco raíz de la cadena; sólo el disco base puede convertirse a multiattach.
+	// Los discos diferenciadores (snapshots) no pueden convertirse directamente.
+	baseDiskPath, err := p.VBox.GetBaseMediumPath(attachedDiskPath)
+	if err != nil {
+		return nil, fmt.Errorf("error al encontrar disco base: %v", err)
 	}
 
 	// Paso 1: Apagar y esperar hasta poweroff
@@ -128,22 +137,22 @@ func (p *PlatformService) CreateMultiAttachDisk(baseVMName string) (*models.Mult
 		}
 	}
 
-	// Paso 2: Desconectar disco (necesario antes de cambiar tipo)
-	if err := p.VBox.DetachDisk(baseVMName, diskPath); err != nil {
+	// Paso 2: Desconectar el disco actualmente conectado (puede ser snapshot)
+	if err := p.VBox.DetachDisk(baseVMName, attachedDiskPath); err != nil {
 		return nil, fmt.Errorf("error al desconectar disco: %v", err)
 	}
 	time.Sleep(2 * time.Second) // Dar tiempo a VirtualBox para liberar el lock
 
-	// Paso 3: Convertir con Rollback
-	if err := p.VBox.ConvertDiskToMultiAttach(diskPath); err != nil {
-		p.VBox.AttachDisk(baseVMName, diskPath) // Rollback
+	// Paso 3: Convertir el disco BASE (no el snapshot) a multiattach, con Rollback
+	if err := p.VBox.ConvertDiskToMultiAttach(baseDiskPath); err != nil {
+		p.VBox.AttachDisk(baseVMName, attachedDiskPath) // Rollback con el disco original
 		return nil, err
 	}
 
-	// Paso 4: Reconectar
-	p.VBox.AttachDisk(baseVMName, diskPath)
+	// Paso 4: Reconectar el disco base (VirtualBox crea un differencing disk automáticamente)
+	p.VBox.AttachDisk(baseVMName, baseDiskPath)
 	diskName := "disk-" + baseVMName
-	disk := &models.MultiAttachDisk{Name: diskName, BaseVMName: baseVMName, DiskPath: diskPath, Connected: true, CreatedAt: time.Now()}
+	disk := &models.MultiAttachDisk{Name: diskName, BaseVMName: baseVMName, DiskPath: baseDiskPath, Connected: true, CreatedAt: time.Now()}
 	baseVM.DiskCreated = true
 	p.Disks[diskName] = disk
 	p.saveState()
@@ -174,7 +183,12 @@ func (p *PlatformService) ConnectDisk(name string) error {
 func (p *PlatformService) DeleteDisk(name string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	d, _ := p.Disks[name]
+	d, ok := p.Disks[name]
+	if !ok {
+		return fmt.Errorf("disco no encontrado: %s", name)
+	}
+	// Detach from base VM first so VirtualBox stays consistent
+	p.VBox.DetachDisk(d.BaseVMName, d.DiskPath)
 	p.VBox.DeleteDisk(d.DiskPath)
 	if b, ok := p.BaseVMs[d.BaseVMName]; ok {
 		b.DiskCreated = false
@@ -191,18 +205,23 @@ func (p *PlatformService) CreateUserVM(name, desc, diskName string) (*models.Use
 	if err := p.VBox.CreateVMFromDisk(name, disk.DiskPath, disk.BaseVMName); err != nil {
 		return nil, err
 	}
+	// Agregar port forwarding SSH para la VM de usuario (igual que base VMs)
+	port, _ := p.VBox.GetNATPort(name)
+	if port == "" {
+		p.VBox.runCommand("modifyvm", name, "--natpf1", fmt.Sprintf("ssh,tcp,,%d,,22", portCounter))
+		portCounter++
+	}
 	uvm := &models.UserVM{Name: name, Description: desc, DiskName: diskName, BaseVMName: disk.BaseVMName, CreatedAt: time.Now()}
 	p.UserVMs[name] = uvm
 	p.saveState()
 	return uvm, nil
 }
 
-func (p *PlatformService) CreateVMUser(vmName, user, pass string) error {
+func (p *PlatformService) CreateVMUser(vmName, user, pass, rootPass string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	uvm, _ := p.UserVMs[vmName]
-	rootKey := p.SSH.GetPrivateKeyPath(uvm.BaseVMName, "root")
-	if err := p.SSH.DeployUserKeys(vmName, user, pass, rootKey); err != nil {
+	if err := p.SSH.DeployUserKeys(vmName, user, pass, rootPass); err != nil {
 		return err
 	}
 	uvm.UserCreated = true

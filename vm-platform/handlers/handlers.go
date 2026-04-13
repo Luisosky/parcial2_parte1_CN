@@ -281,12 +281,12 @@ func (h *Handler) CreateVMUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.VMName == "" || req.Username == "" || req.Password == "" {
-		respondError(w, http.StatusBadRequest, "Nombre de VM, usuario y contraseña son requeridos")
+	if req.VMName == "" || req.Username == "" || req.Password == "" || req.RootPassword == "" {
+		respondError(w, http.StatusBadRequest, "Nombre de VM, usuario, contraseña y contraseña root son requeridos")
 		return
 	}
 
-	if err := h.Platform.CreateVMUser(req.VMName, req.Username, req.Password); err != nil {
+	if err := h.Platform.CreateVMUser(req.VMName, req.Username, req.Password, req.RootPassword); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -316,6 +316,36 @@ func (h *Handler) DownloadUserKeys(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filepath.Base(keyPath)))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	http.ServeFile(w, r, keyPath)
+}
+
+// ListVMUsers returns all user VMs that have a user created
+func (h *Handler) ListVMUsers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		respondError(w, http.StatusMethodNotAllowed, "Método no permitido")
+		return
+	}
+	data := h.Platform.GetDashboardData()
+	type UserEntry struct {
+		VMName     string `json:"vm_name"`
+		Username   string `json:"username"`
+		BaseVMName string `json:"base_vm_name"`
+		DiskName   string `json:"disk_name"`
+	}
+	var users []UserEntry
+	for _, uvm := range data.UserVMs {
+		if uvm.UserCreated {
+			users = append(users, UserEntry{
+				VMName:     uvm.Name,
+				Username:   uvm.Username,
+				BaseVMName: uvm.BaseVMName,
+				DiskName:   uvm.DiskName,
+			})
+		}
+	}
+	if users == nil {
+		users = []UserEntry{}
+	}
+	respondSuccess(w, "Lista de usuarios", users)
 }
 
 // DeleteUserVM removes a user VM
@@ -355,6 +385,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/disk/delete", h.DeleteDisk)
 	mux.HandleFunc("/api/user-vm/create", h.CreateUserVM)
 	mux.HandleFunc("/api/user-vm/create-user", h.CreateVMUser)
+	mux.HandleFunc("/api/user-vm/users", h.ListVMUsers)
 	mux.HandleFunc("/api/user-vm/download-keys", h.DownloadUserKeys)
 	mux.HandleFunc("/api/user-vm/delete", h.DeleteUserVM)
 }
