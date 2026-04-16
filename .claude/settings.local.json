@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); uvm=d.get\\('user_vms',{}\\).get\\('test parcial 1',{}\\); print\\(json.dumps\\(uvm, indent=2\\)\\)\")",
+      "Bash(VBoxManage showvminfo:*)",
+      "Bash(VBoxManage controlvm:*)",
+      "Bash(VBoxManage modifyvm:*)",
+      "Bash(VBoxManage startvm:*)",
+      "Bash(ssh:*)"
+    ]
+  }
+}
