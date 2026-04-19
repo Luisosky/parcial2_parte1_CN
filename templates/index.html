@@ -516,6 +516,15 @@
         </svg>
         Parte 2 — Deploy & Servicios
     </button>
+    <button class="tab-btn" onclick="switchTab('part3')" id="tab-part3">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12l3-3 3 3 5-6"/>
+            <path d="M13 6v3M13 6h-3"/>
+            <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="8" cy="9" r="1.2" fill="currentColor" stroke="none"/>
+        </svg>
+        Parte 3 — Elasticidad
+    </button>
 </nav>
 
 <!-- ═══════════════════ PART 1 ═══════════════════ -->
@@ -788,6 +797,221 @@
 </div>
 </div>
 
+<!-- ═══════════════════ PART 3 — ELASTICIDAD ═══════════════════ -->
+<div class="tab-content" id="content-part3">
+<main class="dashboard">
+    <!-- Pipeline -->
+    <div class="pipeline">
+        <div class="pipeline-step step-1">
+            <div class="pipeline-step-num">1</div>
+            <div class="pipeline-step-info">
+                <div class="pipeline-step-title">Balanceador HAProxy</div>
+                <div class="pipeline-step-desc">Crea el LB sobre una VM dedicada.</div>
+            </div>
+        </div>
+        <div class="pipeline-arrow"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></div>
+        <div class="pipeline-step step-2">
+            <div class="pipeline-step-num">2</div>
+            <div class="pipeline-step-info">
+                <div class="pipeline-step-title">Backends</div>
+                <div class="pipeline-step-desc">Agrega servidores de aplicacion al pool.</div>
+            </div>
+        </div>
+        <div class="pipeline-arrow"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></div>
+        <div class="pipeline-step step-3">
+            <div class="pipeline-step-num">3</div>
+            <div class="pipeline-step-info">
+                <div class="pipeline-step-title">Elasticidad</div>
+                <div class="pipeline-step-desc">Configura umbrales CPU, escala automatico.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Balancers Section -->
+    <section class="section" style="grid-column: 1 / -1;">
+        <div class="section-header">
+            <div class="section-header-left">
+                <div class="section-icon s1"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="14" height="4" rx="1"/><path d="M4 6v2h-2v4M8 6v6M12 6v2h2v4"/></svg></div>
+                <div class="section-label">
+                    <span class="section-title">Balanceadores de Carga</span>
+                    <span class="section-subtitle">HAProxy + elasticidad</span>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="section-badge" id="lb-count">0</span>
+                <button onclick="openCreateLBModal()" class="btn btn-primary" style="padding:6px 14px;">
+                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg>
+                    <span class="btn-text">Crear LB</span>
+                </button>
+            </div>
+        </div>
+        <div class="section-body" id="lb-list" style="min-height:100px;">
+            <div class="empty-state">
+                <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="6" rx="2"/><path d="M6 9v3h-3v6M12 9v9M18 9v3h3v6"/></svg></div>
+                <div class="empty-title">Sin balanceadores</div>
+                <div class="empty-text">Crea un balanceador de carga sobre una VM dedicada para comenzar.</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Details Panel (shows when an LB is selected) -->
+    <section class="section" style="grid-column: 1 / -1;" id="lb-details-section">
+        <div class="section-header">
+            <div class="section-header-left">
+                <div class="section-icon s3"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12l3-3 3 3 5-6"/><path d="M13 6v3M13 6h-3"/></svg></div>
+                <div class="section-label">
+                    <span class="section-title">Dashboard en Vivo</span>
+                    <span class="section-subtitle" id="lb-details-sub">selecciona un balanceador</span>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="section-badge" id="lb-metrics-badge" style="background:var(--bg-card);">—</span>
+                <button class="header-refresh" onclick="refreshSnapshot()" title="Actualizar">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2"/>
+                        <path d="M13.5 2.5v2.5H11"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="section-body" id="lb-details-body" style="padding:16px;">
+            <div class="empty-state">
+                <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+                <div class="empty-title">Selecciona un balanceador</div>
+                <div class="empty-text">Haz clic en un LB de la lista para ver metricas en vivo, gestionar backends y configurar elasticidad.</div>
+            </div>
+        </div>
+    </section>
+</main>
+</div>
+
+<!-- ═══════════════════ MODALS (Part 3) ═══════════════════ -->
+
+<!-- Modal: Create Load Balancer -->
+<div class="modal-overlay" id="modal-create-lb">
+    <div class="modal" style="max-width:520px;">
+        <div class="modal-header">
+            <div class="modal-icon blue"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="5" rx="1"/><path d="M6 8v3h-3v5M10 8v8M14 8v3h3v5"/></svg></div>
+            <div class="modal-title-group"><div class="modal-title">Crear Balanceador HAProxy</div><div class="modal-subtitle">LB nuevo sobre una VM dedicada</div></div>
+            <button class="modal-close" onclick="closeModal('create-lb')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg></button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-info-box"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5v.5"/></svg><p>La VM seleccionada recibira la instalacion de HAProxy via SSH. Debe tener llaves root desplegadas.</p></div>
+            <div class="form-group"><label class="form-label">Nombre del balanceador</label><input type="text" class="form-input" id="lb-create-name" placeholder="ej: lb-web-prod"></div>
+            <div class="form-group"><label class="form-label">VM donde correra HAProxy</label><select class="form-select" id="lb-create-vm"><option value="">Cargando...</option></select></div>
+            <div class="form-group"><label class="form-label">Usuario SSH (para instalacion)</label><input type="text" class="form-input" id="lb-create-user" value="root"></div>
+            <div class="form-group"><label class="form-label">Contrasena root (fallback si llaves fallan)</label><input type="password" class="form-input" id="lb-create-rootpwd" autocomplete="new-password"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group"><label class="form-label">Puerto Frontend</label><input type="number" class="form-input" id="lb-create-fe-port" value="80"></div>
+                <div class="form-group"><label class="form-label">Puerto Backend (app)</label><input type="number" class="form-input" id="lb-create-be-port" value="8080"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Algoritmo</label><select class="form-select" id="lb-create-algo"><option value="roundrobin">roundrobin</option><option value="leastconn">leastconn</option><option value="source">source (sticky IP)</option></select></div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('create-lb')">Cancelar</button><button class="btn btn-primary" id="btn-create-lb" onclick="createLB()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg><span class="btn-text">Crear</span></button></div>
+    </div>
+</div>
+
+<!-- Modal: Add Backend -->
+<div class="modal-overlay" id="modal-add-backend">
+    <div class="modal" style="max-width:520px;">
+        <div class="modal-header">
+            <div class="modal-icon green"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M10 7v6M7 10h6"/></svg></div>
+            <div class="modal-title-group"><div class="modal-title">Agregar Backend al Pool</div><div class="modal-subtitle">Servidor de aplicacion</div></div>
+            <button class="modal-close" onclick="closeModal('add-backend')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="backend-lb-name">
+            <div class="modal-info-box"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5v.5"/></svg><p>Selecciona una VM de usuario donde este corriendo tu aplicacion. Se usara para medir CPU y rutear trafico.</p></div>
+            <div class="form-group"><label class="form-label">Nombre del backend</label><input type="text" class="form-input" id="backend-name" placeholder="ej: srv-01"></div>
+            <div class="form-group"><label class="form-label">VM backend</label><select class="form-select" id="backend-vm" onchange="onBackendVMChange()"><option value="">Cargando...</option></select></div>
+            <input type="hidden" id="backend-username">
+            <div class="form-group"><label class="form-label">Direccion (como la ve HAProxy)</label><input type="text" class="form-input" id="backend-address" placeholder="10.0.2.2" value="10.0.2.2"><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Para VMs con NAT usa <code>10.0.2.2</code> y el puerto host forwardeado.</div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group"><label class="form-label">Puerto</label><input type="number" class="form-input" id="backend-port" placeholder="8080"></div>
+                <div class="form-group"><label class="form-label">Peso (weight)</label><input type="number" class="form-input" id="backend-weight" value="1" min="1"></div>
+            </div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('add-backend')">Cancelar</button><button class="btn btn-primary" id="btn-add-backend" onclick="addBackend()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg><span class="btn-text">Agregar</span></button></div>
+    </div>
+</div>
+
+<!-- Modal: Elasticity Config -->
+<div class="modal-overlay" id="modal-elasticity">
+    <div class="modal" style="max-width:620px;">
+        <div class="modal-header">
+            <div class="modal-icon purple"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15l4-4 3 3 7-8"/><path d="M17 6v4M17 6h-4"/></svg></div>
+            <div class="modal-title-group"><div class="modal-title">Configurar Elasticidad</div><div class="modal-subtitle">Umbrales CPU y escala automatica</div></div>
+            <button class="modal-close" onclick="closeModal('elasticity')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="el-lb-name">
+            <div class="modal-info-box"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5v.5"/></svg><p>Cuando CUALQUIER backend supera el umbral superior durante el tiempo sostenido, se crea una VM desde el disco multiattach. Cuando TODOS estan bajo el umbral inferior, se elimina una VM auto-escalada.</p></div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:14px;">
+                <label style="font-weight:600;color:var(--text-primary);font-size:13px;display:flex;align-items:center;gap:10px;">
+                    <input type="checkbox" id="el-enabled" style="width:16px;height:16px;cursor:pointer;">
+                    Elasticidad activa
+                </label>
+                <span style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">AUTO-SCALING</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group"><label class="form-label">Umbral SUPERIOR CPU %</label><input type="number" class="form-input" id="el-upper" value="75" step="1" min="0" max="100"></div>
+                <div class="form-group"><label class="form-label">Umbral INFERIOR CPU %</label><input type="number" class="form-input" id="el-lower" value="20" step="1" min="0" max="100"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group"><label class="form-label">Tiempo sostenido (seg)</label><input type="number" class="form-input" id="el-sustained" value="60" min="10"></div>
+                <div class="form-group"><label class="form-label">Intervalo de muestreo (seg)</label><input type="number" class="form-input" id="el-interval" value="10" min="5"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div class="form-group"><label class="form-label">Min. backends</label><input type="number" class="form-input" id="el-min" value="1" min="1"></div>
+                <div class="form-group"><label class="form-label">Max. backends</label><input type="number" class="form-input" id="el-max" value="4" min="1"></div>
+                <div class="form-group"><label class="form-label">Cooldown (seg)</label><input type="number" class="form-input" id="el-cooldown" value="60" min="0"></div>
+            </div>
+
+            <div style="margin:16px 0 10px 0;border-top:1px solid var(--border);padding-top:14px;"><span style="font-size:12px;font-weight:600;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;">Fuente de nuevas VMs</span></div>
+
+            <div class="form-group"><label class="form-label">Disco multiattach base</label><select class="form-select" id="el-disk"><option value="">— Seleccionar —</option></select><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Las nuevas VMs compartiran este disco (la app debe estar instalada en el).</div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group"><label class="form-label">Prefijo nombre VM</label><input type="text" class="form-input" id="el-prefix" value="auto-backend-"></div>
+                <div class="form-group"><label class="form-label">Usuario SSH en nueva VM</label><input type="text" class="form-input" id="el-user" placeholder="mismo que el original"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+                <div class="form-group"><label class="form-label">Comando ejecutable (app)</label><input type="text" class="form-input" id="el-exec" placeholder="/home/user/app/sample-app"></div>
+                <div class="form-group"><label class="form-label">Puerto app</label><input type="number" class="form-input" id="el-app-port" value="8080"></div>
+            </div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('elasticity')">Cancelar</button><button class="btn btn-primary" id="btn-save-elasticity" onclick="saveElasticity()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 7l4 4 6-8"/></svg><span class="btn-text">Guardar</span></button></div>
+    </div>
+</div>
+
+<!-- Modal: Stress Test -->
+<div class="modal-overlay" id="modal-stress">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-icon amber"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v3M10 15v3M3 10h3M14 10h3M5 5l2 2M13 13l2 2M5 15l2-2M13 7l2-2"/><circle cx="10" cy="10" r="3"/></svg></div>
+            <div class="modal-title-group"><div class="modal-title">Simular Carga (stress-ng)</div><div class="modal-subtitle">Prueba los umbrales de elasticidad</div></div>
+            <button class="modal-close" onclick="closeModal('stress')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="stress-vm-name">
+            <input type="hidden" id="stress-username">
+            <div class="modal-info-box"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5v.5"/></svg><p>Carga la CPU de la VM seleccionada para verificar que la elasticidad reacciona. stress-ng se instala automaticamente si no existe.</p></div>
+            <div class="form-group"><label class="form-label">VM objetivo</label><div id="stress-vm-display" style="padding:9px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-xs);font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-primary);">—</div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div class="form-group"><label class="form-label">CPUs</label><input type="number" class="form-input" id="stress-cpus" value="1" min="1" max="8"></div>
+                <div class="form-group"><label class="form-label">Carga %</label><input type="number" class="form-input" id="stress-load" value="90" min="1" max="100"></div>
+                <div class="form-group"><label class="form-label">Duracion (seg)</label><input type="number" class="form-input" id="stress-duration" value="180" min="10"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Contrasena root (fallback)</label><input type="password" class="form-input" id="stress-rootpwd" autocomplete="new-password"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-red" onclick="stopStress()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/></svg><span class="btn-text">Detener</span></button>
+            <button class="btn btn-primary" id="btn-start-stress" onclick="startStress()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 3v8l7-4z"/></svg><span class="btn-text">Iniciar stress-ng</span></button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast container -->
 <div class="toast-container" id="toast-container"></div>
 
@@ -924,6 +1148,7 @@ function switchTab(tab) {
     document.getElementById('tab-' + tab).classList.add('active');
     document.getElementById('content-' + tab).classList.add('active');
     if (tab === 'part2') loadDeployableVMs();
+    if (tab === 'part3') loadLBs();
 }
 
 // ═══════════════════════════════════════════
@@ -1387,6 +1612,423 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ═══════════════════════════════════════════
+// PART 3 — ELASTICIDAD
+// ═══════════════════════════════════════════
+
+let currentLBName = '';
+let snapshotTimer = null;
+
+async function loadLBs() {
+    const r = await apiCall('/api/lb/list');
+    if (!r.success) { showToast(r.message || 'Error', 'error'); return; }
+    renderLBs(r.data || []);
+}
+
+function renderLBs(lbs) {
+    const c = document.getElementById('lb-list');
+    document.getElementById('lb-count').textContent = lbs.length;
+    if (!lbs.length) {
+        c.innerHTML = `<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="6" rx="2"/><path d="M6 9v3h-3v6M12 9v9M18 9v3h3v6"/></svg></div><div class="empty-title">Sin balanceadores</div><div class="empty-text">Crea un balanceador para comenzar.</div></div>`;
+        return;
+    }
+    c.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">` + lbs.map(lb => {
+        const runningBadge = lb.running
+            ? '<span class="badge badge-green">CORRIENDO</span>'
+            : lb.installed ? '<span class="badge badge-amber">DETENIDO</span>' : '<span class="badge badge-muted">NO INSTALADO</span>';
+        const elasticBadge = (lb.elasticity && lb.elasticity.enabled)
+            ? '<span class="badge badge-purple">ELASTICIDAD ON</span>'
+            : '<span class="badge badge-muted">ELASTICIDAD OFF</span>';
+        const backends = (lb.backends || []).length;
+        const autoScaled = (lb.backends || []).filter(b => b.auto_scaled).length;
+        return `<div class="card" style="cursor:pointer;${currentLBName===lb.name?'border-color:var(--blue);background:var(--blue-dim);':''}" onclick="selectLB('${lb.name}')">
+            <div class="card-header">
+                <span class="card-name">${lb.name}</span>
+                ${runningBadge}
+            </div>
+            <div class="card-meta">
+                <span class="meta-item">${ICONS.vm} ${lb.vm_name}</span>
+                <span class="meta-item">:${lb.frontend_port} → :${lb.backend_port}</span>
+                <span class="meta-item">${lb.algorithm}</span>
+            </div>
+            <div class="card-meta" style="margin-top:6px;">
+                <span class="meta-item">${backends} backends</span>
+                ${autoScaled > 0 ? `<span class="meta-item" style="color:var(--purple);">${autoScaled} auto</span>` : ''}
+                ${elasticBadge}
+            </div>
+            <div class="card-actions" onclick="event.stopPropagation();">
+                ${!lb.installed ? `<button class="btn btn-primary" onclick="installLB('${lb.name}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v7M4.5 6.5L7 9l2.5-2.5"/><path d="M2 12h10"/></svg><span class="btn-text">Instalar</span></button>` : ''}
+                ${lb.installed ? `<button class="btn btn-green" onclick="lbAction('${lb.name}','start')" ${lb.running?'disabled':''}><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 3v8l7-4z"/></svg><span class="btn-text">Iniciar</span></button>` : ''}
+                ${lb.installed ? `<button class="btn btn-red" onclick="lbAction('${lb.name}','stop')" ${!lb.running?'disabled':''}><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/></svg><span class="btn-text">Detener</span></button>` : ''}
+                <button class="btn btn-red" onclick="deleteLB('${lb.name}')">${ICONS.trash}<span class="btn-text">Eliminar</span></button>
+            </div>
+        </div>`;
+    }).join('') + '</div>';
+}
+
+async function openCreateLBModal() {
+    document.getElementById('lb-create-name').value = '';
+    document.getElementById('lb-create-rootpwd').value = '';
+    const sel = document.getElementById('lb-create-vm');
+    sel.innerHTML = '<option value="">Cargando...</option>';
+    openModal('create-lb');
+    const r = await apiCall('/api/lb/available-vms');
+    if (r.success && r.data && r.data.length) {
+        sel.innerHTML = '<option value="">— Seleccionar VM —</option>' + r.data.map(v => `<option value="${v.vm_name}" data-user="${v.username}">${v.vm_name} (${v.username})</option>`).join('');
+    } else {
+        sel.innerHTML = '<option value="">No hay VMs disponibles (crea una en Parte 1)</option>';
+    }
+}
+
+async function createLB() {
+    const name = document.getElementById('lb-create-name').value.trim();
+    const vmSel = document.getElementById('lb-create-vm');
+    const vmName = vmSel.value;
+    const opt = vmSel.options[vmSel.selectedIndex];
+    const username = document.getElementById('lb-create-user').value.trim() || (opt?.dataset?.user) || 'root';
+    const rootPwd = document.getElementById('lb-create-rootpwd').value;
+    const fePort = parseInt(document.getElementById('lb-create-fe-port').value) || 80;
+    const bePort = parseInt(document.getElementById('lb-create-be-port').value) || 8080;
+    const algo = document.getElementById('lb-create-algo').value;
+
+    if (!name || !vmName) { showToast('Nombre y VM son requeridos', 'error'); return; }
+
+    setBtnLoading('btn-create-lb', true);
+    const r = await apiCall('/api/lb/create', 'POST', {
+        name, vm_name: vmName, username, root_password: rootPwd,
+        frontend_port: fePort, backend_port: bePort, algorithm: algo
+    });
+    setBtnLoading('btn-create-lb', false);
+    if (!r.success) { showToast(r.message, 'error'); return; }
+    showToast(r.message, 'success');
+    closeModal('create-lb');
+    await loadLBs();
+    selectLB(name);
+}
+
+async function installLB(name) {
+    showProgress('Instalando HAProxy', 'Esto puede tomar 1-2 minutos...', [
+        'Iniciando VM si esta apagada',
+        'Configurando port-forwarding NAT',
+        'apt-get install haproxy',
+        'Generando haproxy.cfg',
+        'Validando y recargando'
+    ]);
+    let si = 0;
+    const st = setInterval(() => { si = Math.min(si+1, 4); updateProgressStep(si); }, 10000);
+    const r = await apiCall('/api/lb/install', 'POST', { name });
+    clearInterval(st); hideProgress();
+    showToast(r.message, r.success ? 'success' : 'error');
+    if (r.success) loadLBs();
+}
+
+async function lbAction(name, action) {
+    const r = await apiCall('/api/lb/action', 'POST', { name, action });
+    showToast(r.message, r.success ? 'success' : 'error');
+    if (r.success) { loadLBs(); if (currentLBName === name) refreshSnapshot(); }
+}
+
+async function deleteLB(name) {
+    if (!await showConfirm(`Eliminar balanceador <span class="confirm-name">"${name}"</span>? Esto tambien detiene HAProxy.`)) return;
+    const r = await apiCall('/api/lb/delete', 'POST', { name });
+    showToast(r.message, r.success ? 'success' : 'error');
+    if (r.success) {
+        if (currentLBName === name) { currentLBName = ''; renderDetailsPanel(null); stopSnapshotLoop(); }
+        loadLBs();
+    }
+}
+
+function selectLB(name) {
+    currentLBName = name;
+    loadLBs();
+    refreshSnapshot();
+    startSnapshotLoop();
+}
+
+function startSnapshotLoop() {
+    stopSnapshotLoop();
+    snapshotTimer = setInterval(refreshSnapshot, 5000);
+}
+
+function stopSnapshotLoop() {
+    if (snapshotTimer) { clearInterval(snapshotTimer); snapshotTimer = null; }
+}
+
+async function refreshSnapshot() {
+    if (!currentLBName) return;
+    const r = await apiCall(`/api/lb/snapshot?name=${encodeURIComponent(currentLBName)}`);
+    if (!r.success) { renderDetailsPanel(null); return; }
+    renderDetailsPanel(r.data);
+}
+
+function renderDetailsPanel(snap) {
+    const body = document.getElementById('lb-details-body');
+    const sub = document.getElementById('lb-details-sub');
+    const badge = document.getElementById('lb-metrics-badge');
+
+    if (!snap) {
+        sub.textContent = 'selecciona un balanceador';
+        badge.textContent = '—';
+        badge.style.cssText = '';
+        body.innerHTML = `<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div class="empty-title">Selecciona un balanceador</div><div class="empty-text">Haz clic en un LB de la lista para ver metricas.</div></div>`;
+        return;
+    }
+
+    sub.textContent = snap.lb_name + ' — ' + (snap.current_backends || 0) + ' backends';
+
+    // Max CPU badge
+    const maxCPU = snap.max_cpu_percent || 0;
+    const cpuColor = maxCPU >= 75 ? 'var(--red)' : maxCPU >= 50 ? 'var(--amber)' : 'var(--green)';
+    const cpuBg = maxCPU >= 75 ? 'var(--red-dim)' : maxCPU >= 50 ? 'var(--amber-dim)' : 'var(--green-dim)';
+    badge.textContent = `CPU ${maxCPU.toFixed(1)}%`;
+    badge.style.cssText = `background:${cpuBg};color:${cpuColor};border-color:transparent;`;
+
+    // Event log
+    const events = (snap.event_log || []).slice(0, 20);
+
+    // Timers (high/low/cooldown) and warnings
+    let timerInfo = '';
+    if (!snap.enabled) {
+        timerInfo += `<span class="meta-item" style="color:var(--amber);background:var(--amber-dim);border:1px solid var(--amber);padding:3px 10px;border-radius:5px;font-weight:600;">⚠ Elasticidad DESACTIVADA — actívala en Configurar Elasticidad</span>`;
+    } else {
+        if (snap.high_since_seconds > 0) timerInfo += `<span class="meta-item" style="color:var(--red);">↑ ${snap.high_since_seconds}s sobre umbral</span>`;
+        if (snap.low_since_seconds > 0) timerInfo += `<span class="meta-item" style="color:var(--cyan);">↓ ${snap.low_since_seconds}s bajo umbral</span>`;
+        if (snap.last_action) timerInfo += `<span class="meta-item">ultima accion: ${snap.last_action}</span>`;
+        if (!snap.high_since_seconds && !snap.low_since_seconds) timerInfo += `<span class="meta-item" style="color:var(--green);">✓ Monitoreando — CPU dentro de umbrales</span>`;
+    }
+
+    // Build backends table
+    const backendsHtml = (snap.backends || []).map((b, i) => {
+        const metric = (snap.metrics || []).find(m => m.vm_name === b.vm_name);
+        let cpu = '—';
+        let cpuColor = 'var(--text-muted)';
+        if (metric) {
+            if (metric.error) {
+                cpu = 'err';
+            } else {
+                const v = metric.cpu_percent || 0;
+                cpu = v.toFixed(1) + '%';
+                cpuColor = v >= 75 ? 'var(--red)' : v >= 50 ? 'var(--amber)' : 'var(--green)';
+            }
+        }
+        const autoBadge = b.auto_scaled ? '<span class="badge badge-purple" style="font-size:9px;padding:2px 6px;">AUTO</span>' : '';
+        return `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--text-primary);">${b.name}</span> ${autoBadge}</td>
+            <td style="padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-secondary);">${b.vm_name}</td>
+            <td style="padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted);">${b.address}:${b.port}</td>
+            <td style="padding:10px 12px;text-align:right;"><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${cpuColor};font-size:14px;">${cpu}</span></td>
+            <td style="padding:10px 12px;">${b.enabled ? '<span class="badge badge-green">ON</span>' : '<span class="badge badge-muted">OFF</span>'}</td>
+            <td style="padding:10px 12px;text-align:right;">
+                <button class="btn" onclick="openStressModal('${b.vm_name}','${b.username||''}')" title="Simular carga"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="3"/><path d="M7 1v2M7 11v2M1 7h2M11 7h2"/></svg></button>
+                <button class="btn btn-red" onclick="removeBackend('${snap.lb_name}','${b.name}')" title="Eliminar">${ICONS.trash}</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    body.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+            <div class="status-indicator"><div class="dot ${snap.enabled?'active':'inactive'}"></div><div><div class="status-label">${snap.enabled?'ACTIVA':'DESACTIVADA'}</div><div class="status-sub">Elasticidad</div></div></div>
+            <div class="status-indicator"><div class="dot ${maxCPU>=50?'active':'unknown'}" style="${maxCPU>=75?'background:var(--red);':maxCPU>=50?'background:var(--amber);':''}"></div><div><div class="status-label">${maxCPU.toFixed(1)}%</div><div class="status-sub">CPU max</div></div></div>
+            <div class="status-indicator"><div class="dot ${snap.current_backends>0?'active':'inactive'}"></div><div><div class="status-label">${snap.current_backends}</div><div class="status-sub">Backends activos</div></div></div>
+        </div>
+
+        ${timerInfo ? `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">${timerInfo}</div>` : ''}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <!-- Backends -->
+            <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                    <span style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;font-family:'JetBrains Mono',monospace;">Backends (Pool)</span>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn" onclick="openElasticityModal('${snap.lb_name}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.5"/><path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13"/></svg><span class="btn-text">Elasticidad</span></button>
+                        <button class="btn btn-primary" onclick="openAddBackendModal('${snap.lb_name}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg><span class="btn-text">Agregar</span></button>
+                    </div>
+                </div>
+                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+                    ${(snap.backends||[]).length ? `<table style="width:100%;border-collapse:collapse;font-size:12px;">
+                        <thead><tr style="background:var(--bg-primary);border-bottom:1px solid var(--border);">
+                            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;font-family:'JetBrains Mono',monospace;font-size:10px;">NOMBRE</th>
+                            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;font-family:'JetBrains Mono',monospace;font-size:10px;">VM</th>
+                            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;font-family:'JetBrains Mono',monospace;font-size:10px;">ADDR</th>
+                            <th style="padding:8px 12px;text-align:right;color:var(--text-muted);font-weight:500;font-family:'JetBrains Mono',monospace;font-size:10px;">CPU</th>
+                            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;font-family:'JetBrains Mono',monospace;font-size:10px;">EST</th>
+                            <th style="padding:8px 12px;"></th>
+                        </tr></thead>
+                        <tbody>${backendsHtml}</tbody>
+                    </table>` : '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px;">Sin backends. Agrega uno para comenzar.</div>'}
+                </div>
+            </div>
+
+            <!-- Event Log -->
+            <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                    <span style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;font-family:'JetBrains Mono',monospace;">Eventos de Elasticidad</span>
+                    <span style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">${events.length} eventos</span>
+                </div>
+                <div style="background:#0a0e17;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;max-height:320px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7;color:var(--green);">
+                    ${events.length ? events.map(e => `<div>${escapeHtml(e)}</div>`).join('') : '<span style="color:var(--text-muted);font-style:italic;">Sin eventos aun.</span>'}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ─── Backends ───
+async function openAddBackendModal(lbName) {
+    document.getElementById('backend-lb-name').value = lbName;
+    document.getElementById('backend-name').value = 'srv-' + Math.floor(Math.random() * 1000);
+    const sel = document.getElementById('backend-vm');
+    sel.innerHTML = '<option value="">Cargando...</option>';
+    openModal('add-backend');
+    const r = await apiCall('/api/lb/available-vms');
+    if (r.success && r.data && r.data.length) {
+        sel.innerHTML = '<option value="">— Seleccionar VM —</option>' + r.data.map(v => `<option value="${v.vm_name}" data-user="${v.username}">${v.vm_name} (${v.username})</option>`).join('');
+    } else {
+        sel.innerHTML = '<option value="">No hay VMs disponibles</option>';
+    }
+    // Default port: LB backend port
+    const lbRes = await apiCall('/api/lb/list');
+    if (lbRes.success && lbRes.data) {
+        const lb = lbRes.data.find(l => l.name === lbName);
+        if (lb) document.getElementById('backend-port').value = lb.backend_port;
+    }
+}
+
+function onBackendVMChange() {
+    const sel = document.getElementById('backend-vm');
+    const opt = sel.options[sel.selectedIndex];
+    if (opt?.dataset?.user) {
+        document.getElementById('backend-username').value = opt.dataset.user;
+    }
+}
+
+async function addBackend() {
+    const lbName = document.getElementById('backend-lb-name').value;
+    const name = document.getElementById('backend-name').value.trim();
+    const vmSel = document.getElementById('backend-vm');
+    const vmName = vmSel.value;
+    const username = vmSel.options[vmSel.selectedIndex]?.dataset?.user || '';
+    const address = document.getElementById('backend-address').value.trim() || '10.0.2.2';
+    const port = parseInt(document.getElementById('backend-port').value) || 8080;
+    const weight = parseInt(document.getElementById('backend-weight').value) || 1;
+
+    if (!name || !vmName) { showToast('Nombre y VM son requeridos', 'error'); return; }
+
+    setBtnLoading('btn-add-backend', true);
+    const r = await apiCall('/api/lb/backend/add', 'POST', {
+        lb_name: lbName, name, vm_name: vmName, username, address, port, weight
+    });
+    setBtnLoading('btn-add-backend', false);
+    showToast(r.message, r.success ? 'success' : 'error');
+    if (r.success) { closeModal('add-backend'); refreshSnapshot(); loadLBs(); }
+}
+
+async function removeBackend(lbName, backendName) {
+    if (!await showConfirm(`Eliminar backend <span class="confirm-name">"${backendName}"</span>?`)) return;
+    const r = await apiCall('/api/lb/backend/remove', 'POST', { lb_name: lbName, backend_name: backendName });
+    showToast(r.message, r.success ? 'success' : 'error');
+    if (r.success) { refreshSnapshot(); loadLBs(); }
+}
+
+// ─── Elasticity config ───
+async function openElasticityModal(lbName) {
+    document.getElementById('el-lb-name').value = lbName;
+
+    // Load current config
+    const lbRes = await apiCall('/api/lb/list');
+    let cfg = null;
+    if (lbRes.success && lbRes.data) {
+        const lb = lbRes.data.find(l => l.name === lbName);
+        cfg = lb?.elasticity;
+    }
+    if (cfg) {
+        document.getElementById('el-enabled').checked = cfg.enabled || false;
+        document.getElementById('el-upper').value = cfg.upper_threshold_cpu || 75;
+        document.getElementById('el-lower').value = cfg.lower_threshold_cpu || 20;
+        document.getElementById('el-sustained').value = cfg.sustained_seconds || 60;
+        document.getElementById('el-interval').value = cfg.sample_interval_sec || 10;
+        document.getElementById('el-min').value = cfg.min_backends || 1;
+        document.getElementById('el-max').value = cfg.max_backends || 4;
+        document.getElementById('el-cooldown').value = cfg.cooldown_seconds || 60;
+        document.getElementById('el-prefix').value = cfg.new_vm_name_prefix || 'auto-backend-';
+        document.getElementById('el-user').value = cfg.new_vm_user || '';
+        document.getElementById('el-exec').value = cfg.app_exec_command || '';
+        document.getElementById('el-app-port').value = cfg.app_port || 8080;
+    }
+
+    // Populate disk dropdown
+    const disksSel = document.getElementById('el-disk');
+    disksSel.innerHTML = '<option value="">Cargando...</option>';
+    openModal('elasticity');
+    const diskRes = await apiCall('/api/lb/disks');
+    if (diskRes.success && diskRes.data && diskRes.data.length) {
+        disksSel.innerHTML = '<option value="">— Seleccionar disco —</option>' +
+            diskRes.data.map(d => `<option value="${d.name}" ${cfg && cfg.base_disk_name===d.name?'selected':''}>${d.name} (base: ${d.base_vm_name})</option>`).join('');
+    } else {
+        disksSel.innerHTML = '<option value="">No hay discos (crea uno en Parte 1)</option>';
+    }
+}
+
+async function saveElasticity() {
+    const lbName = document.getElementById('el-lb-name').value;
+    const body = {
+        lb_name: lbName,
+        enabled: document.getElementById('el-enabled').checked,
+        upper_threshold_cpu: parseFloat(document.getElementById('el-upper').value),
+        lower_threshold_cpu: parseFloat(document.getElementById('el-lower').value),
+        sustained_seconds: parseInt(document.getElementById('el-sustained').value),
+        sample_interval_sec: parseInt(document.getElementById('el-interval').value),
+        min_backends: parseInt(document.getElementById('el-min').value),
+        max_backends: parseInt(document.getElementById('el-max').value),
+        cooldown_seconds: parseInt(document.getElementById('el-cooldown').value),
+        base_disk_name: document.getElementById('el-disk').value,
+        new_vm_name_prefix: document.getElementById('el-prefix').value,
+        new_vm_user: document.getElementById('el-user').value,
+        app_exec_command: document.getElementById('el-exec').value,
+        app_port: parseInt(document.getElementById('el-app-port').value)
+    };
+
+    setBtnLoading('btn-save-elasticity', true);
+    const r = await apiCall('/api/lb/elasticity/update', 'POST', body);
+    setBtnLoading('btn-save-elasticity', false);
+    showToast(r.message, r.success ? 'success' : 'error');
+    if (r.success) { closeModal('elasticity'); refreshSnapshot(); loadLBs(); }
+}
+
+// ─── Stress test ───
+function openStressModal(vmName, username) {
+    document.getElementById('stress-vm-name').value = vmName;
+    document.getElementById('stress-username').value = username || '';
+    document.getElementById('stress-vm-display').textContent = vmName + (username ? ' (' + username + ')' : '');
+    document.getElementById('stress-rootpwd').value = '';
+    openModal('stress');
+}
+
+async function startStress() {
+    const body = {
+        vm_name: document.getElementById('stress-vm-name').value,
+        username: document.getElementById('stress-username').value,
+        root_password: document.getElementById('stress-rootpwd').value,
+        cpus: parseInt(document.getElementById('stress-cpus').value) || 1,
+        load_percent: parseInt(document.getElementById('stress-load').value) || 90,
+        duration_sec: parseInt(document.getElementById('stress-duration').value) || 180
+    };
+    setBtnLoading('btn-start-stress', true);
+    const r = await apiCall('/api/stress/start', 'POST', body);
+    setBtnLoading('btn-start-stress', false);
+    showToast(r.message, r.success ? 'success' : 'error');
+    if (r.success) closeModal('stress');
+}
+
+async function stopStress() {
+    const body = {
+        vm_name: document.getElementById('stress-vm-name').value,
+        root_password: document.getElementById('stress-rootpwd').value
+    };
+    const r = await apiCall('/api/stress/stop', 'POST', body);
+    showToast(r.message, r.success ? 'success' : 'error');
 }
 
 // ═══════════════════════════════════════════

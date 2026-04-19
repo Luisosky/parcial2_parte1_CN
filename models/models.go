@@ -121,3 +121,126 @@ type CreateUserRequest struct {
 	Password     string `json:"password"`
 	RootPassword string `json:"root_password"`
 }
+
+// ─── Parte 3: Elasticidad Automática ───
+
+// LoadBalancer represents an HAProxy load balancer running on a VM
+type LoadBalancer struct {
+	Name         string            `json:"name"`
+	VMName       string            `json:"vm_name"`
+	Username     string            `json:"username"`
+	RootPassword string            `json:"root_password,omitempty"`
+	FrontendPort int               `json:"frontend_port"`
+	BackendPort  int               `json:"backend_port"`
+	Algorithm    string            `json:"algorithm"`
+	Backends     []*BackendServer  `json:"backends"`
+	Installed    bool              `json:"installed"`
+	Running      bool              `json:"running"`
+	Elasticity   *ElasticityConfig `json:"elasticity,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+}
+
+// BackendServer represents a single backend application server registered in HAProxy
+type BackendServer struct {
+	Name       string    `json:"name"`
+	VMName     string    `json:"vm_name"`
+	Username   string    `json:"username"`
+	Address    string    `json:"address"`
+	Port       int       `json:"port"`
+	Weight     int       `json:"weight"`
+	Enabled    bool      `json:"enabled"`
+	AutoScaled bool      `json:"auto_scaled"`
+	DiskName   string    `json:"disk_name,omitempty"`
+	AddedAt    time.Time `json:"added_at"`
+}
+
+// ElasticityConfig holds the thresholds and timing configuration for auto-scaling
+type ElasticityConfig struct {
+	Enabled           bool      `json:"enabled"`
+	UpperThresholdCPU float64   `json:"upper_threshold_cpu"`
+	LowerThresholdCPU float64   `json:"lower_threshold_cpu"`
+	SustainedSeconds  int       `json:"sustained_seconds"`
+	SampleIntervalSec int       `json:"sample_interval_sec"`
+	MinBackends       int       `json:"min_backends"`
+	MaxBackends       int       `json:"max_backends"`
+	CooldownSeconds   int       `json:"cooldown_seconds"`
+	BaseDiskName      string    `json:"base_disk_name"`
+	NewVMNamePrefix   string    `json:"new_vm_name_prefix"`
+	NewVMUser         string    `json:"new_vm_user"`
+	AppExecCommand    string    `json:"app_exec_command"`
+	AppPort           int       `json:"app_port"`
+	LastScaleAction   time.Time `json:"last_scale_action,omitempty"`
+	LastScaleType     string    `json:"last_scale_type,omitempty"`
+}
+
+// CPUMetric is a single point-in-time CPU measurement on a backend VM
+type CPUMetric struct {
+	VMName     string    `json:"vm_name"`
+	CPUPercent float64   `json:"cpu_percent"`
+	Timestamp  time.Time `json:"timestamp"`
+	Error      string    `json:"error,omitempty"`
+}
+
+// MetricsSnapshot is the latest view of metrics plus elasticity state, for the UI
+type MetricsSnapshot struct {
+	LBName           string           `json:"lb_name"`
+	Backends         []*BackendServer `json:"backends"`
+	Metrics          []CPUMetric      `json:"metrics"`
+	MaxCPUPercent    float64          `json:"max_cpu_percent"`
+	AvgCPUPercent    float64          `json:"avg_cpu_percent"`
+	CurrentBackends  int              `json:"current_backends"`
+	HighSinceSeconds int              `json:"high_since_seconds"`
+	LowSinceSeconds  int              `json:"low_since_seconds"`
+	LastAction       string           `json:"last_action,omitempty"`
+	LastActionTime   time.Time        `json:"last_action_time,omitempty"`
+	Enabled          bool             `json:"enabled"`
+	EventLog         []string         `json:"event_log,omitempty"`
+}
+
+// StressRequest requests stress-ng execution on a VM
+type StressRequest struct {
+	VMName      string `json:"vm_name"`
+	CPUs        int    `json:"cpus"`
+	LoadPercent int    `json:"load_percent"`
+	Duration    int    `json:"duration_sec"`
+}
+
+// LoadBalancerCreateRequest to create a new LB
+type LoadBalancerCreateRequest struct {
+	Name         string `json:"name"`
+	VMName       string `json:"vm_name"`
+	Username     string `json:"username"`
+	RootPassword string `json:"root_password"`
+	FrontendPort int    `json:"frontend_port"`
+	BackendPort  int    `json:"backend_port"`
+	Algorithm    string `json:"algorithm"`
+}
+
+// BackendAddRequest adds a backend to an LB
+type BackendAddRequest struct {
+	LBName   string `json:"lb_name"`
+	Name     string `json:"name"`
+	VMName   string `json:"vm_name"`
+	Username string `json:"username"`
+	Address  string `json:"address"`
+	Port     int    `json:"port"`
+	Weight   int    `json:"weight"`
+}
+
+// ElasticityUpdateRequest updates the elasticity config for an LB
+type ElasticityUpdateRequest struct {
+	LBName            string  `json:"lb_name"`
+	Enabled           bool    `json:"enabled"`
+	UpperThresholdCPU float64 `json:"upper_threshold_cpu"`
+	LowerThresholdCPU float64 `json:"lower_threshold_cpu"`
+	SustainedSeconds  int     `json:"sustained_seconds"`
+	SampleIntervalSec int     `json:"sample_interval_sec"`
+	MinBackends       int     `json:"min_backends"`
+	MaxBackends       int     `json:"max_backends"`
+	CooldownSeconds   int     `json:"cooldown_seconds"`
+	BaseDiskName      string  `json:"base_disk_name"`
+	NewVMNamePrefix   string  `json:"new_vm_name_prefix"`
+	NewVMUser         string  `json:"new_vm_user"`
+	AppExecCommand    string  `json:"app_exec_command"`
+	AppPort           int     `json:"app_port"`
+}

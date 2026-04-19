@@ -21,15 +21,23 @@ func main() {
 	// Initialize services
 	platform := services.NewPlatformService()
 	deploySvc := services.NewDeployService(platform.VBox, platform.SSH)
+	haproxySvc := services.NewHAProxyService(platform.VBox, platform.SSH)
+	monitorSvc := services.NewMonitorService(platform.VBox, platform.SSH)
+	elasticSvc := services.NewElasticityService(platform, haproxySvc, monitorSvc)
+
+	// Start the background elasticity loop
+	elasticSvc.Start()
 
 	// Initialize handlers
 	handler := handlers.NewHandler(platform)
 	deployHandler := handlers.NewDeployHandler(deploySvc, platform)
+	elasticHandler := handlers.NewElasticityHandler(elasticSvc, monitorSvc, haproxySvc, platform)
 
 	// Set up routes
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 	deployHandler.RegisterDeployRoutes(mux)
+	elasticHandler.RegisterRoutes(mux)
 
 	// Serve static files
 	staticContent, _ := fs.Sub(staticFS, "static")
@@ -53,8 +61,8 @@ func main() {
 
 	port := ":8080"
 	fmt.Printf("╔══════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║  VM Platform - Gestión de Máquinas Virtuales        ║\n")
-	fmt.Printf("║  Parcial 2 - Parte 1 & 2                           ║\n")
+	fmt.Printf("║  VM Platform - Gestion de Maquinas Virtuales        ║\n")
+	fmt.Printf("║  Parcial 2 - Parte 1 & 2 & 3 (Elasticidad)          ║\n")
 	fmt.Printf("║  Servidor iniciado en http://localhost%s          ║\n", port)
 	fmt.Printf("╚══════════════════════════════════════════════════════╝\n")
 

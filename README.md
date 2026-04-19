@@ -1,6 +1,6 @@
-# VM Platform — Parcial 2 (Parte 1 & Parte 2)
+# VM Platform — Parcial 2 (Parte 1, 2 & 3)
 
-Plataforma web desarrollada en **Go (Golang)** para automatizar la gestión de máquinas virtuales en Oracle VirtualBox, despliegue de aplicaciones y gestión de servicios systemd mediante SSH.
+Plataforma web desarrollada en **Go** para automatizar la gestión de máquinas virtuales en Oracle VirtualBox, despliegue de aplicaciones, gestión de servicios systemd y **elasticidad automática con HAProxy**.
 
 ---
 
@@ -8,9 +8,10 @@ Plataforma web desarrollada en **Go (Golang)** para automatizar la gestión de m
 
 - **Go** 1.21 o superior → [https://go.dev/dl/](https://go.dev/dl/)
 - **Oracle VirtualBox** con `VBoxManage` accesible en el PATH
-- Al menos **2 máquinas virtuales** con distribuciones Debian configuradas en VirtualBox
+- Al menos **2 máquinas virtuales** con Debian 13 (CLI) configuradas en VirtualBox
 - **Servidor SSH** instalado y configurado en cada VM
 - Las VMs deben tener acceso SSH con llaves de autenticación configuradas
+- Para la Parte 3: **una VM adicional dedicada para HAProxy** (Debian CLI con acceso a internet para `apt-get install haproxy`)
 
 ---
 
@@ -18,195 +19,200 @@ Plataforma web desarrollada en **Go (Golang)** para automatizar la gestión de m
 
 ```
 vm-platform/
-├── main.go                         # Punto de entrada del servidor web
-├── go.mod / go.sum                 # Módulo de Go
-├── build-sample-app.sh             # Script para compilar la app de ejemplo
+├── main.go                               # Entry point
+├── go.mod / go.sum
 ├── handlers/
-│   ├── handlers.go                 # Controladores HTTP (Parte 1 - VMs)
-│   └── deploy_handlers.go          # Controladores HTTP (Parte 2 - Deploy/Services)
+│   ├── handlers.go                       # Parte 1 — VMs
+│   ├── deploy_handlers.go                # Parte 2 — Deploy/Services
+│   └── elasticity_handlers.go            # Parte 3 — Elasticidad (NUEVO)
 ├── models/
-│   └── models.go                   # Modelos de datos (Parte 1 + 2)
+│   └── models.go                         # Incluye tipos de Parte 3 (NUEVO)
 ├── services/
-│   ├── vbox_service.go             # Servicio VBoxManage
-│   ├── ssh_service.go              # Servicio SSH (llaves RSA-1024)
-│   ├── platform_service.go         # Servicio principal (Parte 1)
-│   └── deploy_service.go           # Servicio de despliegue (Parte 2)
-├── sample-app/
-│   ├── main.go                     # Aplicación de ejemplo para gestionar
-│   └── go.mod                      # Módulo de la app de ejemplo
+│   ├── vbox_service.go                   # VBoxManage
+│   ├── ssh_service.go                    # SSH (llaves RSA)
+│   ├── platform_service.go               # Parte 1
+│   ├── deploy_service.go                 # Parte 2
+│   ├── haproxy_service.go                # Parte 3 — HAProxy mgmt (NUEVO)
+│   ├── monitor_service.go                # Parte 3 — CPU sampling (NUEVO)
+│   └── elasticity_service.go             # Parte 3 — Auto-scaling loop (NUEVO)
+├── sample-app/                           # App de ejemplo para Parte 2
 ├── templates/
-│   └── index.html                  # Dashboard web completo (Parte 1 + 2)
+│   └── index.html                        # Dashboard (3 pestañas)
 └── static/
-    └── css/ js/                    # Archivos estáticos
 ```
 
 ---
 
-## Instalación y Ejecución
+## Ejecución
 
 ```bash
-# 1. Clonar o copiar el proyecto
-cd vm-platform
-
-# 2. Compilar la plataforma
 go build -o vm-platform .
-
-# 3. Ejecutar
 ./vm-platform
 ```
 
-El servidor se inicia en **http://localhost:8080**
+Servidor en **http://localhost:8080**
 
 ---
 
-## Compilar la Aplicación de Ejemplo
+## Parte 3 — Elasticidad Automática
 
-La aplicación de ejemplo escribe líneas incrementales con marca de tiempo a un archivo.
+Implementa elasticidad automática usando HAProxy como balanceador de carga y VMs VirtualBox como backends que se crean/destruyen dinámicamente según el consumo de CPU.
 
-```bash
-# Compilar para Linux (target de las VMs)
-chmod +x build-sample-app.sh
-./build-sample-app.sh
+### Arquitectura
 
-# El archivo zip se genera en: dist/sample-app.zip
+```
+┌─────────────────────┐
+│  VM Platform (Go)   │   ← Dashboard web, loop de elasticidad
+└──────────┬──────────┘
+           │ SSH + VBoxManage
+   ┌───────┴────────┐
+   ▼                ▼
+┌─────────┐   ┌──────────────────┐
+│ VM LB   │   │ VM Backends       │
+│ HAProxy │──▶│ App + CPU monitor │
+│ :80     │   │ :8080             │
+└─────────┘   └──────────────────┘
+                     ▲ escalado
+                     │ desde disco
+                     │ multiattach
+                     ▼
+              ┌──────────────┐
+              │ Disco .vdi   │
+              │ multiattach  │
+              └──────────────┘
 ```
 
-**Formato de salida de la aplicación:**
-```
-1 - 2026-04-13 10:00:01
-2 - 2026-04-13 10:01:15
-3 - 2026-04-13 10:01:20
-```
+### Flujo de uso (paso a paso)
 
----
+1. **Preparación (Parte 1):**
+   - Crea una VM base con Debian + tu app pre-instalada.
+   - Despliega llaves root SSH en ella.
+   - Convierte su disco a **multiattach**.
+   - Crea una VM de usuario desde el disco (para tener al menos 1 backend inicial).
+   - Crea una VM adicional para HAProxy (también necesita llaves root SSH).
 
-## Parte 1 — Gestión de Máquinas Virtuales
+2. **Crea el balanceador** (pestaña Parte 3):
+   - Nombre del LB, selecciona VM dedicada para HAProxy.
+   - Puerto frontend (ej: 80) y puerto backend (ej: 8080).
+   - Contraseña root para instalar HAProxy.
+   - Clic en "Instalar" — esto hace `apt-get install haproxy` via SSH y configura port-forwarding NAT.
 
-### Funcionalidades
-- **Agregar VM Base**: Registra una VM existente de VirtualBox
-- **Crear Llaves Root**: Genera par RSA-1024, despliega vía SSH
-- **Crear Disco Multiconexión**: Convierte disco a tipo multiattach
-- **Crear VM de Usuario**: Nueva VM compartiendo disco base
-- **Crear Usuario**: Cuenta SSH con llaves RSA en la VM
+3. **Agrega backends manualmente:**
+   - Al menos 1 backend inicial apuntando a tu app.
+   - Dirección: `10.0.2.2` (NAT host visto desde VM HAProxy) + puerto forwardeado.
 
-### API REST (Parte 1)
+4. **Configura elasticidad:**
+   - Umbral superior CPU (ej: 75%) — se escala hacia arriba si es superado por `sustained_seconds`.
+   - Umbral inferior CPU (ej: 20%) — se escala hacia abajo si es respetado.
+   - Disco multiattach base — desde donde se clonarán nuevas VMs.
+   - Marca "Elasticidad activa".
+
+5. **Prueba con stress-ng:**
+   - Haz clic en el ícono de stress-ng junto a un backend.
+   - Configura carga (ej: 1 CPU al 90% por 180s).
+   - Observa cómo la CPU sube, el timer llega a `sustained_seconds`, y se crea una nueva VM automáticamente.
+
+### Componentes técnicos
+
+#### HAProxy (`haproxy_service.go`)
+- Instala HAProxy via `apt-get` por SSH.
+- Genera `/etc/haproxy/haproxy.cfg` con frontend/backend dinámicos.
+- Valida configuración con `haproxy -c` antes de recargar.
+- Expone stats en `:9000` con auth `admin/admin`.
+- Configura automáticamente port-forwarding NAT en la VM del LB.
+
+#### Monitor de CPU (`monitor_service.go`)
+- Muestrea CPU vía SSH usando diff de `/proc/stat` (más preciso que `top`).
+- Mantiene historial de 60 muestras por VM.
+- Evalúa umbrales con timers sostenidos (inicia contador cuando se cruza el umbral, se resetea al descenso).
+- Respeta cooldown entre acciones consecutivas.
+- Ejecuta `stress-ng` con instalación automática.
+
+#### Orquestador (`elasticity_service.go`)
+- Loop de fondo con heartbeat de 5s, cada LB muestrea a su `sample_interval_sec` configurado.
+- **Scale-up:** crea nueva VM con `platform.CreateUserVM(name, ..., baseDisk)`, arranca la VM, agrega port-forward NAT para la app (host → guest), registra el backend en HAProxy con `10.0.2.2:<host_port>`.
+- **Scale-down:** elimina el backend más recientemente auto-escalado, recarga HAProxy, apaga y elimina la VM.
+- Persiste estado en `~/.vm-platform/loadbalancers.json`.
+
+### API REST (Parte 3)
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| GET | `/api/dashboard` | Datos del dashboard |
-| GET | `/api/vms/available` | VMs disponibles en VirtualBox |
-| POST | `/api/base-vm/add` | Agregar VM base |
-| POST | `/api/base-vm/create-keys` | Crear llaves SSH de root |
-| GET | `/api/base-vm/download-keys` | Descargar llave privada root |
-| POST | `/api/disk/create` | Crear disco multiconexión |
-| POST | `/api/disk/disconnect` | Desconectar disco |
-| POST | `/api/disk/connect` | Conectar disco |
-| POST | `/api/disk/delete` | Eliminar disco |
-| POST | `/api/user-vm/create` | Crear VM de usuario |
-| POST | `/api/user-vm/create-user` | Crear usuario en VM |
-| GET | `/api/user-vm/download-keys` | Descargar llaves de usuario |
-| POST | `/api/user-vm/delete` | Eliminar VM de usuario |
+| GET | `/api/lb/list` | Listar balanceadores |
+| POST | `/api/lb/create` | Crear balanceador |
+| POST | `/api/lb/update` | Actualizar LB |
+| POST | `/api/lb/delete` | Eliminar LB |
+| POST | `/api/lb/install` | Instalar HAProxy y aplicar config |
+| POST | `/api/lb/action` | start/stop/restart HAProxy |
+| GET | `/api/lb/status` | Estado de HAProxy |
+| POST | `/api/lb/backend/add` | Agregar backend |
+| POST | `/api/lb/backend/update` | Actualizar backend |
+| POST | `/api/lb/backend/remove` | Remover backend |
+| POST | `/api/lb/backend/toggle` | Habilitar/deshabilitar backend |
+| POST | `/api/lb/elasticity/update` | Actualizar config de elasticidad |
+| GET | `/api/lb/snapshot` | Snapshot en vivo (métricas + backends + eventos) |
+| GET | `/api/lb/events` | Log de eventos de elasticidad |
+| GET | `/api/lb/cpu-history` | Historial CPU de una VM |
+| POST | `/api/stress/start` | Iniciar stress-ng en una VM |
+| POST | `/api/stress/stop` | Detener stress-ng |
+| GET | `/api/lb/available-vms` | VMs candidatas para backend |
+| GET | `/api/lb/disks` | Discos multiattach disponibles |
 
 ---
 
-## Parte 2 — Despliegue y Gestión de Servicios systemd
+## Problemas Encontrados
 
-### Flujo de Trabajo
+### Parte 1
+- El tiempo de espera al iniciar VMs puede variar según recursos del host.
+- Los discos multiattach de VirtualBox requieren secuencia exacta de desconexión/conversión.
 
-1. **Seleccionar VM**: Elegir una VM con usuario SSH configurado
-2. **Subir archivo .zip**: Contiene la aplicación a ejecutar
-3. **Configurar despliegue**: Carpeta destino, comando ejecutable, parámetros
-4. **Desplegar**: La plataforma sube el zip, lo extrae, y prueba la ejecución
-5. **Crear servicio systemd**: Se genera el archivo `.service` con `Restart=always` y `RestartSec=2`
-6. **Gestionar servicio**: Iniciar, detener, reiniciar, habilitar/deshabilitar al arranque
-7. **Monitorear logs**: Visualización en tiempo real del archivo de log (tail -f)
+### Parte 2
+- Transferencia de archivos grandes por SSH pipe puede ser lenta.
 
-### Dashboard de Servicios
-
-El dashboard incluye:
-- **Indicadores de estado**: Muestra si el servicio está activo y habilitado al arranque
-- **Botones de control**: Iniciar, Reiniciar, Detener, Habilitar, Deshabilitar
-- **Estado del servicio**: Salida de `systemctl status`
-- **Visor de logs en vivo**: Stream del contenido del archivo de log con tail -f
-
-Los controles se habilitan/deshabilitan automáticamente según el estado del servicio.
-
-### Configuración del Servicio systemd
-
-El archivo de servicio generado tiene la siguiente estructura:
-
-```ini
-[Unit]
-Description=Servicio gestionado - <nombre>
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=<carpeta>/<ejecutable> <parametros>
-WorkingDirectory=<carpeta>
-User=<usuario>
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
-```
-
-- **Restart=always**: Se reinicia automáticamente si se detiene
-- **RestartSec=2**: Verificación cada 2 segundos
-
-### API REST (Parte 2)
-
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/deploy/vms` | VMs disponibles para despliegue |
-| POST | `/api/deploy/upload` | Subir .zip y desplegar (multipart/form-data) |
-| GET | `/api/deploy/list` | Lista de despliegues realizados |
-| POST | `/api/service/create` | Crear servicio systemd |
-| POST | `/api/service/action` | Acción del servicio (start/stop/restart/enable/disable) |
-| GET | `/api/service/status` | Estado actual del servicio |
-| GET | `/api/service/logs` | Contenido del archivo de log |
-| GET | `/api/service/stream` | Stream SSE de tail -f (Server-Sent Events) |
+### Parte 3
+- VirtualBox usa NAT por defecto para cada VM, lo que hace que las VMs no se vean entre sí. La solución fue usar `10.0.2.2:<host_port>` con port-forwarding como vía de comunicación entre la VM HAProxy y los backends.
+- `apt-get install haproxy` en VMs sin caché previa toma 30-90s.
+- Medir CPU vía `top -bn1` da lecturas inestables; cambiamos a diff de `/proc/stat` con sleep 1s.
+- Primera muestra de CPU después de iniciar una VM nueva puede ser errática durante los primeros ~20s.
 
 ---
 
-## Especificaciones Técnicas
+## Propuestas de Mejora (Parte 3)
 
-- **Algoritmo de llaves**: RSA con 1024 bits
-- **Formato de llaves**: OpenSSH
-- **Tipo de disco**: Multiattach (VirtualBox)
-- **Red**: NAT con port forwarding para SSH
-- **SSH nativo**: Librería golang.org/x/crypto/ssh (sin sshpass)
-- **Persistencia**: Estado en archivos JSON (~/.vm-platform/)
-- **Log streaming**: Server-Sent Events (SSE) para tail -f
-- **Servicio systemd**: Restart=always, RestartSec=2
-
----
-
-## Problemas Encontrados y Propuestas de Mejora
-
-### Problemas
-1. El tiempo de espera al iniciar VMs puede variar según los recursos del host
-2. Los discos multiattach de VirtualBox requieren una secuencia exacta de desconexión/conversión
-3. La transferencia de archivos grandes por SSH pipe puede ser lenta
-
-### Propuestas de Mejora
-1. Usar SFTP en lugar de pipe SSH para transferencia de archivos grandes
-2. WebSocket en lugar de SSE para comunicación bidireccional
-3. Soporte para múltiples servicios por VM
-4. Editor web del archivo de configuración del daemon
-5. Métricas de CPU/RAM del servicio en el dashboard
-6. Autenticación web con usuario/contraseña
+1. Gráficas históricas de CPU con Chart.js en el dashboard.
+2. Scale-up predictivo basado en tendencia (no solo umbral instantáneo).
+3. Soporte para múltiples algoritmos de scale-down (más reciente, menos cargado, etc.).
+4. Health checks personalizados HTTP en lugar de TCP-check por defecto.
+5. Métricas adicionales: RAM, disco, conexiones activas en HAProxy.
+6. Red "hostonly" en vez de NAT para comunicación directa entre VMs (requiere configuración VirtualBox adicional).
+7. Soporte para múltiples LBs en la misma VM.
+8. Notificaciones (webhook/email) en eventos de escalado.
 
 ---
 
-## Conocimientos Aprendidos
+## Conocimientos Aprendidos (Parte 3)
 
-- Gestión programática de VirtualBox mediante VBoxManage
-- Generación de pares de llaves RSA en Go con golang.org/x/crypto/ssh
-- Despliegue automatizado de llaves SSH sin sshpass
-- Creación y gestión de servicios systemd programáticamente
-- Arquitectura de servicios REST en Go
-- Server-Sent Events (SSE) para streaming en tiempo real
-- Transferencia de archivos sobre SSH en Go
-- Discos multiattach y copy-on-write en VirtualBox
+- Instalación y configuración programática de HAProxy vía SSH.
+- Diseño de loop de monitoreo concurrente con `sync.WaitGroup` en Go.
+- Medición precisa de CPU en Linux usando `/proc/stat` con diferencial temporal.
+- Diseño de máquina de estados de elasticidad con timers sostenidos + cooldown.
+- Port-forwarding NAT dinámico en VirtualBox con `VBoxManage modifyvm --natpf1`.
+- Generación de configuración HAProxy programáticamente con validación previa (`haproxy -c`).
+- Comunicación entre VMs NAT mediante el host (`10.0.2.2`).
+- Patrón orquestador-servicio en Go: separación clara entre HAProxy ops, monitoring y lógica de scaling.
+- Sincronización de estado persistente (JSON) con acceso concurrente (`sync.RWMutex`).
+- Simulación de carga CPU controlable con `stress-ng --cpu N --cpu-load M --timeout T`.
+
+---
+
+## Notas de uso
+
+- **Primera vez:** después de crear un LB, haz clic en "Instalar" antes de agregar backends.
+- **Configuración recomendada para pruebas:**
+  - Umbral superior: 75%, inferior: 20%
+  - Tiempo sostenido: 60s
+  - Intervalo muestreo: 10s
+  - Cooldown: 60s
+  - Min/Max backends: 1 / 4
+- **Test rápido:** usa `sustained_seconds=30` para ver el escalado más rápido durante demos.
+- **Stats HAProxy:** después de instalar, abre `http://<host>:9000` (usuario/pass: admin/admin).
