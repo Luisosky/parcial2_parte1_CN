@@ -537,9 +537,16 @@ func (e *ElasticityService) tickLB(lb *models.LoadBalancer) {
 		if len(lb.Backends) >= lb.Elasticity.MaxBackends {
 			return
 		}
+		if lb.Elasticity.BaseDiskName == "" {
+			// Evita spam: log una vez y resetea timers para no reintentar cada tick.
+			e.Monitor.LogEvent(fmt.Sprintf("[%s] scale-up pospuesto: no hay disco multiattach configurado (max=%.1f%%)", lb.Name, maxCPU))
+			e.Monitor.ResetLBTimers(lb.Name)
+			return
+		}
 		e.Monitor.LogEvent(fmt.Sprintf("[%s] CPU alta sostenida (max=%.1f%%) -> escalar UP", lb.Name, maxCPU))
 		if err := e.scaleUp(lb); err != nil {
 			e.Monitor.LogEvent(fmt.Sprintf("[%s] ERROR scale-up: %v", lb.Name, err))
+			e.Monitor.ResetLBTimers(lb.Name)
 			return
 		}
 		lb.Elasticity.LastScaleAction = time.Now()
